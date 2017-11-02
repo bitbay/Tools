@@ -1,4 +1,4 @@
-import * as utils from "../common/utils";
+import {copyFromObject} from "../common/safeutils";
 import * as geom from "../format/geom";
 import * as dbft from "../format/dragonBonesFormat";
 import * as dbftV23 from "../format/dragonBonesFormatV23";
@@ -17,13 +17,13 @@ export default function (data: string, getTextureAtlases: () => dbft.TextureAtla
         if (dbft.DATA_VERSIONS.indexOf(version) < dbft.DATA_VERSIONS.indexOf(dbft.DATA_VERSION_4_0)) {
             textureAtlases = getTextureAtlases();
             const data = new dbftV23.DragonBones();
-            utils.copyFromObject(data, json, dbftV23.copyConfig);
+            copyFromObject(data, json, dbftV23.copyConfig);
 
             return V23ToV45(data);
         }
 
         const result = new dbft.DragonBones();
-        utils.copyFromObject(result, json, dbft.copyConfig);
+        copyFromObject(result, json, dbft.copyConfig);
 
         for (const armature of result.armature) {
             for (const animation of armature.animation) {

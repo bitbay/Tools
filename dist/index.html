@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Contet-Type" content="text/html; charset=utf-8">
+    <script src="dragonbones-db2.js"></script>
+    <title></title>
+</head>
+
+<body>
+        <script>
+            // armature in v2.3 format
+            var data = '{"armature":[{"skin":[{"name":"default","slot":[{"name":"layer_bg","z":0,"display":[{"transform":{"scX":1,"x":0,"scY":1,"y":0,"pX":0.5,"pY":0.5,"skX":0,"skY":0},"name":"bg_item","type":"image"}],"parent":"layer_bg"},{"name":"layer_mask","z":1,"display":[{"transform":{"scX":1,"x":0,"scY":1,"y":0,"pX":80.5,"pY":80.5,"skX":0,"skY":0},"name":"mask_item","type":"image"}],"blendMode":"alpha","parent":"layer_mask"}]}],"name":"anim_item","bone":[{"transform":{"scX":1,"x":0,"skX":0,"scY":1,"y":0,"skY":0},"name":"layer_bg"},{"transform":{"scX":0.5,"x":64,"skX":0,"scY":0.5,"y":64,"skY":0},"name":"layer_mask"}],"animation":[{"fadeInTime":0,"timeline":[{"name":"layer_bg","scale":1,"frame":[{"transform":{"scX":1,"x":0,"scY":1,"y":0,"pX":0,"pY":0,"skX":0,"skY":0},"z":0,"duration":360},{"transform":{"scX":1,"x":0,"scY":1,"y":0,"pX":0,"pY":0,"skX":0,"skY":0},"z":0,"duration":1}],"offset":0},{"name":"layer_mask","scale":1,"frame":[{"z":1,"transform":{"scX":0.5,"x":64,"scY":0.5,"y":64,"pX":0,"pY":0,"skX":0,"skY":0},"duration":180,"tweenEasing":0},{"z":1,"transform":{"scX":0.5,"x":64,"scY":0.5,"y":64,"pX":0,"pY":0,"skX":180,"skY":180},"duration":180,"tweenEasing":0},{"transform":{"scX":0.5,"x":64,"scY":0.5,"y":64,"pX":0,"pY":0,"skX":-1,"skY":-1},"z":1,"duration":1}],"offset":0}],"scale":1,"loop":1,"autoTween":1,"name":"animation","duration":361,"tweenEasing":null}]}],"name":"blending","frameRate":24,"version":2.3}';
+
+            var input = {
+                data: data,
+                to: "new"
+            }
+            console.log(dragonBones.db2(input));
+        </script>
+</body>
+</html>

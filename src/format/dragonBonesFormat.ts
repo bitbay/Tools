@@ -1,5 +1,5 @@
 import { Map } from "../common/types";
-import * as utils from "../common/utils";
+import { getEnumFormString } from "../common/safeutils";
 import { Matrix, Transform, ColorTransform, Point, Rectangle, helpPoint } from "./geom";
 import * as geom from "./geom";
 import * as dbftV23 from "./dragonBonesFormatV23";
@@ -1530,7 +1530,7 @@ export const copyConfig = [
                 let type = display.type;
                 if (type !== undefined) {
                     if (typeof type === "string") {
-                        type = utils.getEnumFormString(DisplayType, type, DisplayType.Image);
+                        type = getEnumFormString(DisplayType, type, DisplayType.Image);
                     }
                 }
                 else {
@@ -1557,7 +1557,7 @@ export const copyConfig = [
                             let subType = display.subType;
                             if (subType !== undefined) {
                                 if (typeof subType === "string") {
-                                    subType = utils.getEnumFormString(BoundingBoxType, subType, BoundingBoxType.Rectangle);
+                                    subType = getEnumFormString(BoundingBoxType, subType, BoundingBoxType.Rectangle);
                                 }
                             }
                             else {

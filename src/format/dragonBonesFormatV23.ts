@@ -1,5 +1,5 @@
 import { Transform, ColorTransform } from "./geom";
-import * as utils from "../common/utils";
+import {getEnumFormString} from "../common/safeutils";
 import * as dbft from "./dragonBonesFormat";
 /**
  * DragonBones format v23.
@@ -141,7 +141,7 @@ export const copyConfig = [
                 let type = display.type;
                 if (type !== undefined) {
                     if (typeof type === "string") {
-                        type = utils.getEnumFormString(dbft.DisplayType, type, dbft.DisplayType.Image);
+                        type = getEnumFormString(dbft.DisplayType, type, dbft.DisplayType.Image);
                     }
                 }
                 else {

@@ -1,5 +1,5 @@
 // import { Map } from "../common/types";
-import * as utils from "../common/utils";
+import {getEnumFormString} from "../common/safeutils";
 import * as geom from "../format/geom";
 import * as dbft from "../format/dragonBonesFormat";
 import * as spft from "../format/spineFormat";
@@ -51,7 +51,7 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                 Math.round(slot.color.aM * 2.55).toString(16)
             ).toUpperCase();
 
-            switch (utils.getEnumFormString(dbft.BlendMode, slot.blendMode)) {
+            switch (getEnumFormString(dbft.BlendMode, slot.blendMode)) {
                 case dbft.BlendMode.Normal:
                     spSlot.blend = "normal";
                     break;

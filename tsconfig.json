@@ -6,13 +6,13 @@
 		"alwaysStrict": true,
 		"noImplicitAny": true,
 		"noImplicitThis": true,
-		"noUnusedLocals": true,
+		"noUnusedLocals": false,
 		"noUnusedParameters": true,
 		"strictNullChecks": true,
 		"experimentalDecorators": true,
 		"allowSyntheticDefaultImports": true,
 		"target": "es5",
-		"module": "commonjs",
+		"module": "es6",
 		"newLine": "LF",
 		"baseUrl": "./src",
 		"outDir": "./out",
@@ -20,7 +20,9 @@
 			"es5",
 			"dom",
 			"es2015.promise"
-		]
+		],
+		"types" : [ "node" ],
+		"typeRoots": ["node_modules/@types"]
 	},
 	"exclude": [
 		"node_modules",
