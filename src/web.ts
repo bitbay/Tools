@@ -1,22 +1,26 @@
 import toFormat from "./action/toFormat";
 import toV45 from "./action/toV45";
 import toNew from "./action/toNew";
-//import toBinary from "./action/toBinary";
-//import toWeb from "./action/toWeb";
 import toSpine from "./action/toSpine";
 import format from "./action/formatFormat";
+import { copyFromObject } from "./common/safeutils";
 import * as dbft from "./format/dragonBonesFormat";
 import * as spft from "./format/spineFormat";
 
 type Input = {
     from: "spine" | "cocos";
     to: "binary" | "new" | "v45" | "player" | "viewer" | "spine";
-    data: string; // DragonBones JSON string | spine JSON string { data: string, textureAtlas: string }
+    data: string | any; // DragonBones JSON string | spine JSON string { data: string, textureAtlas: string }
     compress?: boolean;
     forPro?: boolean;
     textureAtlases?: string[]; // PNG Base64 string.
     config?: any; // { web: web config, spine: spine verison }
 };
+
+type db2Input = Input & {
+    atlasData: any; // DragonBones Atlas JSON
+    atlasImage: string; // PNG Base64 string.
+}
 
 type FormatType = "string" | "base64" | "binary";
 
@@ -97,13 +101,21 @@ function compress(data: any, config: any[]): boolean {
     return false;
 }
 
-export function db2(input: Input): Output[] {
+export function db2(input: db2Input): Output[] {
     let dragonBonesData: dbft.DragonBones | null = null;
+    let textureAtlasFiles: string[] | null = null;
+    let textureAtlasImages: string[] | null = null;
+    let textureAtlases: dbft.TextureAtlas[] = new Array<dbft.TextureAtlas>();
+
     try {
         dragonBonesData = toFormat(
             input.data,
             () => {
-                return [];
+                const textureAtlas = new dbft.TextureAtlas();
+                copyFromObject(textureAtlas, input.atlasData, dbft.copyConfig);
+                textureAtlases.push(textureAtlas);
+
+                return textureAtlases;
             }
         );
     }
@@ -119,21 +131,6 @@ export function db2(input: Input): Output[] {
     switch (input.to) {
         case "binary": {
             throw new Error("input.to:binary not yet implemented");
-            /*
-            toNew(dragonBonesData, true);
-            format(dragonBonesData);
-            const result = new Buffer(toBinary(dragonBonesData)).toString("base64");
-
-            toOutput.push(
-                new Output(
-                    result,
-                    dragonBonesData.name,
-                    "_ske.dbbin",
-                    "base64"
-                )
-            );
-            break;
-            */
         }
 
         case "new": {
@@ -179,28 +176,6 @@ export function db2(input: Input): Output[] {
         case "player":
         case "viewer": {
             throw new Error("input.to:[player|viewer] not yet implemented");
-            /*
-            toNew(dragonBonesData, true);
-            const result = toWeb(
-                {
-                    data: new Buffer(toBinary(dragonBonesData)),
-                    textureAtlases: input.textureAtlases ? input.textureAtlases.map((v) => {
-                        return new Buffer(v, "base64");
-                    }) : [],
-                    config: input.config
-                },
-                input.to === "player"
-            );
-            toOutput.push(
-                new Output(
-                    result,
-                    dragonBonesData.name,
-                    ".html",
-                    "string"
-                )
-            );
-            break;
-            */
         }
 
         case "spine": {

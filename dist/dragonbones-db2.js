@@ -788,6 +788,9 @@
         var testString = string.substr(0, Math.min(200, string.length));
         return testString.indexOf("armature") > 0 || testString.indexOf("textureAtlas") > 0;
     }
+    function isDragonBonesObject(object) {
+        return object.hasOwnProperty("armature") || object.hasOwnProperty("textureAtlas");
+    }
     function getTextureFormTextureAtlases(name, textureAtlases) {
         for (var _i = 0, textureAtlases_1 = textureAtlases; _i < textureAtlases_1.length; _i++) {
             var textureAtlas = textureAtlases_1[_i];
@@ -2263,11 +2266,11 @@
 
     var normalColor = new ColorTransform();
     function toFormat (data, getTextureAtlases) {
-        if (!isDragonBonesString(data)) {
+        if ((typeof data === 'string' && !isDragonBonesString(data)) || !isDragonBonesObject(data)) {
             return null;
         }
         try {
-            var json = JSON.parse(data);
+            var json = typeof data === 'string' ? JSON.parse(data) : data;
             var version = json["version"];
             if (DATA_VERSIONS.indexOf(version) < DATA_VERSIONS.indexOf(DATA_VERSION_4_0)) {
                 textureAtlases = getTextureAtlases();
@@ -4301,9 +4304,15 @@
     }
     function db2(input) {
         var dragonBonesData = null;
+        var textureAtlasFiles = null;
+        var textureAtlasImages = null;
+        var textureAtlases = new Array();
         try {
             dragonBonesData = toFormat(input.data, function () {
-                return [];
+                var textureAtlas = new TextureAtlas();
+                copyFromObject(textureAtlas, input.atlasData, copyConfig);
+                textureAtlases.push(textureAtlas);
+                return textureAtlases;
             });
         }
         catch (error) {
@@ -4315,21 +4324,6 @@
         switch (input.to) {
             case "binary": {
                 throw new Error("input.to:binary not yet implemented");
-                /*
-                toNew(dragonBonesData, true);
-                format(dragonBonesData);
-                const result = new Buffer(toBinary(dragonBonesData)).toString("base64");
-
-                toOutput.push(
-                    new Output(
-                        result,
-                        dragonBonesData.name,
-                        "_ske.dbbin",
-                        "base64"
-                    )
-                );
-                break;
-                */
             }
             case "new": {
                 toNew(dragonBonesData, false);
@@ -4354,28 +4348,6 @@
             case "player":
             case "viewer": {
                 throw new Error("input.to:[player|viewer] not yet implemented");
-                /*
-                toNew(dragonBonesData, true);
-                const result = toWeb(
-                    {
-                        data: new Buffer(toBinary(dragonBonesData)),
-                        textureAtlases: input.textureAtlases ? input.textureAtlases.map((v) => {
-                            return new Buffer(v, "base64");
-                        }) : [],
-                        config: input.config
-                    },
-                    input.to === "player"
-                );
-                toOutput.push(
-                    new Output(
-                        result,
-                        dragonBonesData.name,
-                        ".html",
-                        "string"
-                    )
-                );
-                break;
-                */
             }
             case "spine": {
                 toNew(dragonBonesData, true);

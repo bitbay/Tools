@@ -5,13 +5,13 @@ import * as dbftV23 from "../format/dragonBonesFormatV23";
 
 const normalColor = new geom.ColorTransform();
 
-export default function (data: string, getTextureAtlases: () => dbft.TextureAtlas[]): dbft.DragonBones | null {
-    if (!dbft.isDragonBonesString(data)) {
+export default function (data: string | any, getTextureAtlases: () => dbft.TextureAtlas[]): dbft.DragonBones | null {
+    if ((typeof data === 'string' && !dbft.isDragonBonesString(data)) || !dbft.isDragonBonesObject(data) ) {
         return null;
     }
 
     try {
-        const json = JSON.parse(data);
+        const json = typeof data === 'string' ? JSON.parse(data) : data;
         const version = json["version"];
 
         if (dbft.DATA_VERSIONS.indexOf(version) < dbft.DATA_VERSIONS.indexOf(dbft.DATA_VERSION_4_0)) {

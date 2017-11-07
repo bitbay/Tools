@@ -139,6 +139,10 @@ export function isDragonBonesString(string: string): boolean {
     return testString.indexOf("armature") > 0 || testString.indexOf("textureAtlas") > 0;
 }
 
+export function isDragonBonesObject(object: any): boolean {
+    return object.hasOwnProperty("armature") || object.hasOwnProperty("textureAtlas");
+}
+
 export function getFrameByPosition<T extends Frame>(frames: T[], position: number): T {
     let index = 0;
     let currentPosition = 0;
