@@ -1320,6 +1320,7 @@ export class ActionFrame extends Frame {
     readonly actions: Action[] = [];
 
     equal(value: this): boolean {
+        // tslint:disable-next-line:no-unused-expression
         value;
         return !value;
     }
