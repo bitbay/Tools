@@ -2381,7 +2381,7 @@
      */
     function V23ToV45(data) {
         var result = new DragonBones();
-        result.frameRate = result.frameRate;
+        result.frameRate = data.frameRate;
         result.name = data.name;
         result.version = DATA_VERSION_4_5;
         result.compatibleVersion = DATA_VERSION_4_0;
