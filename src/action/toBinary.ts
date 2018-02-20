@@ -4,9 +4,6 @@ import { Endian, ByteArray } from "../common/byteArray";
 import * as geom from "../format/geom";
 import * as dbft from "../format/dragonBonesFormat";
 
-const helpMatrixA: geom.Matrix = new geom.Matrix();
-const helpMatrixB: geom.Matrix = new geom.Matrix();
-const helpPoint: geom.Point = new geom.Point();
 const byteArray: ByteArray = new ByteArray();
 
 const intArray: Array<number> = [];
@@ -15,12 +12,15 @@ const timelineArray: Array<number> = [];
 const frameArray: Array<number> = [];
 const frameIntArray: Array<number> = [];
 const frameFloatArray: Array<number> = [];
+const colorArray: Array<number> = [];
 const colors: Map<number> = {};
 
 let currentArmature: dbft.Armature;
 let currentAnimationBinary: dbft.AnimationBinary;
 // let currentTimeline: dbft.Timeline<any>;
-
+/**
+ * Convert DragonBones format to binary.
+ */
 export default function (data: dbft.DragonBones): ArrayBuffer {
     // Clean helper.
     byteArray.clear();
@@ -30,17 +30,27 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
     frameArray.length = 0;
     frameIntArray.length = 0;
     frameFloatArray.length = 0;
+    colorArray.length = 0;
     for (let k in colors) {
         delete colors[k];
     }
 
-    const binaryDatas = new Array<dbft.MeshDisplay>();
+    const binaryDatas = new Array<dbft.Display>();
+
     for (currentArmature of data.armature) {
         for (const skin of currentArmature.skin) {
             for (const slot of skin.slot) {
                 for (const display of slot.display) {
                     if (display instanceof dbft.MeshDisplay) {
                         display.offset = createMesh(display);
+                        binaryDatas.push(display);
+                    }
+                    else if (display instanceof dbft.PathDisplay) {
+                        display.offset = createVertices(display);
+                        binaryDatas.push(display);
+                    }
+                    else if (display instanceof dbft.PolygonBoundingBoxDisplay) {
+                        display.offset = createVertices(display);
                         binaryDatas.push(display);
                     }
                 }
@@ -72,6 +82,10 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
                 currentAnimationBinary.bone[timeline.name] = createBoneTimeline(timeline);
             }
 
+            for (const timeline of animation.surface) {
+                currentAnimationBinary.surface[timeline.name] = createSurfaceTimeline(timeline);
+            }
+
             for (const timeline of animation.slot) {
                 currentAnimationBinary.slot[timeline.name] = createSlotTimeline(timeline);
             }
@@ -82,7 +96,7 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
                 }
 
                 const timelines = currentAnimationBinary.slot[timeline.slot];
-                for (const value of createFFDTimeline(timeline)) {
+                for (const value of createMeshDeformTimeline(timeline)) {
                     timelines.push(value);
                 }
             }
@@ -96,12 +110,11 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
         for (const animation of animationBinarys) {
             currentArmature.animation.push(animation);
         }
+    }
 
-        // Clear binary data. 
-        for (const data of binaryDatas) {
-            data.clearToBinary();
-        }
-        binaryDatas.length = 0;
+    // Clear binary data. 
+    for (const data of binaryDatas) {
+        data.clearToBinary();
     }
 
     // Align.
@@ -121,6 +134,10 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
         timelineArray.push(0);
     }
 
+    if ((colorArray.length % Int16Array.BYTES_PER_ELEMENT) !== 0) {
+        colorArray.push(0);
+    }
+
     // Offset.
     data.offset[0] = 0;
     data.offset[1] = intArray.length * Int16Array.BYTES_PER_ELEMENT;
@@ -134,9 +151,11 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
     data.offset[9] = frameArray.length * Int16Array.BYTES_PER_ELEMENT;
     data.offset[10] = data.offset[8] + data.offset[9];
     data.offset[11] = timelineArray.length * Uint16Array.BYTES_PER_ELEMENT;
+    data.offset[12] = data.offset[10] + data.offset[11];
+    data.offset[13] = colorArray.length * Int16Array.BYTES_PER_ELEMENT;
     utils.compress(data, dbft.compressConfig);
 
-    // Write bytes.
+    // Write DragonBones format tag.
     byteArray.endian = Endian.LITTLE_ENDIAN;
     byteArray.writeByte("D".charCodeAt(0));
     byteArray.writeByte("B".charCodeAt(0));
@@ -145,7 +164,7 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
     byteArray.writeByte(0);
     byteArray.writeByte(0);
     byteArray.writeByte(0);
-    byteArray.writeByte(1);
+    byteArray.writeByte(2);
 
     const jsonString = JSON.stringify(data);
     byteArray.writeUTF(jsonString, true);
@@ -163,7 +182,8 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
         frameIntArray.length * Int16Array.BYTES_PER_ELEMENT +
         frameFloatArray.length * Float32Array.BYTES_PER_ELEMENT +
         frameArray.length * Int16Array.BYTES_PER_ELEMENT +
-        timelineArray.length * Uint16Array.BYTES_PER_ELEMENT;
+        timelineArray.length * Uint16Array.BYTES_PER_ELEMENT +
+        colorArray.length * Int16Array.BYTES_PER_ELEMENT;
 
     for (const value of intArray) {
         byteArray.writeShort(value);
@@ -189,6 +209,10 @@ export default function (data: dbft.DragonBones): ArrayBuffer {
         byteArray.writeUnsignedShort(value);
     }
 
+    for (const value of colorArray) {
+        byteArray.writeShort(value);
+    }
+
     return byteArray.buffer;
 }
 
@@ -203,6 +227,66 @@ function createColor(value: geom.ColorTransform): number {
     intArray[offset + 5] = value.rO;
     intArray[offset + 6] = value.gO;
     intArray[offset + 7] = value.bO;
+
+    if (offset >= 65536) {
+        // TODO
+    }
+
+    return offset;
+}
+
+function createVertices(value: dbft.VerticesData): number {
+    const vertexCount = value.vertexCount;
+    const offset = intArray.length;
+    const vertexOffset = floatArray.length;
+
+    intArray.length += 1 + 1 + 1 + 1;
+    intArray[offset + dbft.BinaryOffset.MeshVertexCount] = vertexCount;
+    intArray[offset + dbft.BinaryOffset.MeshTriangleCount] = 0;
+    intArray[offset + dbft.BinaryOffset.MeshFloatOffset] = vertexOffset;
+
+    if (value.weights.length === 0) {
+        floatArray.length += value.vertices.length;
+
+        for (let i = 0, l = value.vertices.length; i < l; i++) {
+            floatArray[vertexOffset + i] = value.vertices[i];
+        }
+
+        intArray[offset + dbft.BinaryOffset.MeshWeightOffset] = -1;
+    }
+    else {
+        const weightBoneCount = value.bones.length;
+        const weightCount = Math.floor(value.weights.length - vertexCount) / 2; // uint
+        const weightOffset = intArray.length;
+        const floatOffset = floatArray.length;
+
+        intArray.length += 1 + 1 + weightBoneCount;
+        intArray[weightOffset + dbft.BinaryOffset.WeigthBoneCount] = weightBoneCount;
+        intArray[weightOffset + dbft.BinaryOffset.WeigthFloatOffset] = floatOffset;
+
+        for (let i = 0; i < weightBoneCount; i++) {
+            intArray[weightOffset + dbft.BinaryOffset.WeigthBoneIndices + i] = value.bones[i];
+        }
+
+        floatArray.length += weightCount * 3;
+
+        for (let i = 0, iV = 0, iW = 0, iB = weightOffset + dbft.BinaryOffset.WeigthBoneIndices + weightBoneCount, iF = floatOffset; i < weightCount; i++) {
+            const boneCount = value.weights[iW++];
+            intArray[iB++] = boneCount;
+
+            for (let j = 0; j < boneCount; j++) {
+                const boneIndex = value.weights[iW++];
+                const boneWeight = value.weights[iW++];
+
+                intArray[iB++] = value.bones.indexOf(boneIndex);
+                floatArray[iF++] = boneWeight;
+                floatArray[iF++] = value.vertices[iV++];
+                floatArray[iF++] = value.vertices[iV++];
+            }
+        }
+
+        intArray[offset + dbft.BinaryOffset.MeshWeightOffset] = weightOffset;
+    }
 
     return offset;
 }
@@ -242,7 +326,7 @@ function createMesh(value: dbft.MeshDisplay): number {
         }
 
         floatArray.length += value._weightCount * 3;
-        helpMatrixA.copyFromArray(value.slotPose, 0);
+        geom.helpMatrixA.copyFromArray(value.slotPose, 0);
 
         for (
             let i = 0, iW = 0, iB = weightOffset + dbft.BinaryOffset.WeigthBoneIndices + value._boneCount, iV = floatOffset;
@@ -254,20 +338,20 @@ function createMesh(value: dbft.MeshDisplay): number {
 
             let x = floatArray[vertexOffset + iD];
             let y = floatArray[vertexOffset + iD + 1];
-            helpMatrixA.transformPoint(x, y, helpPoint);
-            x = helpPoint.x;
-            y = helpPoint.y;
+            geom.helpMatrixA.transformPoint(x, y, geom.helpPointA);
+            x = geom.helpPointA.x;
+            y = geom.helpPointA.y;
 
             for (let j = 0; j < vertexBoneCount; ++j) {
                 const rawBoneIndex = value.weights[iW++]; // uint
                 const bonePoseOffset = value.getBonePoseOffset(rawBoneIndex);
-                helpMatrixB.copyFromArray(value.bonePose, bonePoseOffset + 1);
-                helpMatrixB.invert();
-                helpMatrixB.transformPoint(x, y, helpPoint);
+                geom.helpMatrixB.copyFromArray(value.bonePose, bonePoseOffset + 1);
+                geom.helpMatrixB.invert();
+                geom.helpMatrixB.transformPoint(x, y, geom.helpPointA);
                 intArray[iB++] = bonePoseOffset / 7; // 
                 floatArray[iV++] = value.weights[iW++];
-                floatArray[iV++] = helpPoint.x;
-                floatArray[iV++] = helpPoint.y;
+                floatArray[iV++] = geom.helpPointA.x;
+                floatArray[iV++] = geom.helpPointA.y;
             }
         }
 
@@ -342,13 +426,14 @@ function createTweenFrame(frame: dbft.TweenFrame, frameStart: number): number {
         if (frame.curve.length > 0) {
             const sampleCount = frame.duration + 1;
             const samples = new Array<number>(sampleCount);
-            dbft.samplingEasingCurve(frame.curve, samples);
+            const isOmited = dbft.samplingEasingCurve(frame.curve, samples);
 
             frameArray.length += 1 + 1 + samples.length;
             frameArray[frameOffset + dbft.BinaryOffset.FrameTweenType] = dbft.TweenType.Curve;
-            frameArray[frameOffset + dbft.BinaryOffset.FrameTweenEasingOrCurveSampleCount] = sampleCount;
+            frameArray[frameOffset + dbft.BinaryOffset.FrameTweenEasingOrCurveSampleCount] = isOmited ? sampleCount : -sampleCount; // Notice: If not omit data, the count is negative number.
+
             for (let i = 0; i < sampleCount; ++i) {
-                frameArray[frameOffset + dbft.BinaryOffset.FrameCurveSamples + i] = Math.round(samples[i] * 10000.0);
+                frameArray[frameOffset + dbft.BinaryOffset.FrameCurveSamples + i] = Math.round(samples[i] * 10000.0); // Min ~ Max [-3.00~3.00]
             }
         }
         else {
@@ -551,6 +636,128 @@ function createBoneTimeline(value: dbft.BoneTimeline): number[] {
     return timelines;
 }
 
+function createSurfaceTimeline(value: dbft.SurfaceTimeline): number[] {
+    const timelines = new Array<number>();
+
+    const surface = currentArmature.getBone(value.name) as dbft.Surface;
+    if (!surface || surface.type !== dbft.BoneType.Surface) {
+        return timelines;
+    }
+
+    const vertexCount = surface.vertices.length / 2;
+    for (const frame of value.frame) {
+        let x = 0.0;
+        let y = 0.0;
+
+        const vertices = new Array<number>();
+        for (
+            let i = 0;
+            i < vertexCount * 2;
+            i += 2
+        ) {
+            if (frame.vertices.length === 0) {
+                x = 0.0;
+                y = 0.0;
+            }
+            else {
+                if (i < frame.offset || i - frame.offset >= frame.vertices.length) {
+                    x = 0.0;
+                }
+                else {
+                    x = frame.vertices[i - frame.offset];
+                }
+
+                if (i + 1 < frame.offset || i + 1 - frame.offset >= frame.vertices.length) {
+                    y = 0.0;
+                }
+                else {
+                    y = frame.vertices[i + 1 - frame.offset];
+                }
+            }
+
+            vertices.push(x, y);
+        }
+
+        frame.vertices = vertices;
+    }
+
+    const firstValues = value.frame[0].vertices;
+    const count = firstValues.length;
+    let completedBegin = false;
+    let completedEnd = false;
+    let begin = 0;
+    let end = count - 1;
+
+    while (!completedBegin || !completedEnd) {
+        if (!completedBegin) {
+            for (const frame of value.frame) {
+                if (frame.vertices[begin] !== firstValues[begin]) {
+                    completedBegin = true;
+                    break;
+                }
+            }
+
+            if (begin === count - 1) {
+                completedBegin = true;
+            }
+            else if (!completedBegin) {
+                begin++;
+            }
+        }
+
+        if (completedBegin && !completedEnd) {
+            for (const frame of value.frame) {
+                if (frame.vertices[end] !== firstValues[end]) {
+                    completedEnd = true;
+                    break;
+                }
+            }
+
+            if (end === begin) {
+                completedEnd = true;
+            }
+            else if (!completedEnd) {
+                end--;
+            }
+        }
+    }
+
+    const frameIntOffset = frameIntArray.length;
+    const valueCount = end - begin + 1;
+
+    frameIntArray.length += 5;
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformMeshOffset] = 0; // Empty.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformCount] = count; // Deform count.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformValueCount] = valueCount; // Value count.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformValueOffset] = begin; // Value offset.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformFloatOffset] = frameFloatArray.length - currentAnimationBinary.offset[dbft.OffsetOrder.FrameFloat]; // Float offset.
+
+    for (let i = 0; i < begin; ++i) {
+        frameFloatArray.push(firstValues[i]);
+    }
+
+    for (let i = count - 1; i > end; --i) {
+        frameFloatArray.push(firstValues[i]);
+    }
+
+    const timelineOffset = createTimeline(value, value.frame, false, true, valueCount, (frame, frameStart) => {
+        const offset = createTweenFrame(frame, frameStart);
+        for (let i = 0; i < valueCount; ++i) {
+            frameFloatArray.push(frame.vertices[begin + i]);
+        }
+
+        return offset;
+    });
+
+    // Get more infomation form value count offset.
+    timelineArray[timelineOffset + dbft.BinaryOffset.TimelineFrameValueCount] = frameIntOffset - currentAnimationBinary.offset[dbft.OffsetOrder.FrameInt];
+
+    timelines.push(dbft.TimelineType.Surface);
+    timelines.push(timelineOffset);
+
+    return timelines;
+}
+
 function createSlotTimeline(value: dbft.SlotTimeline): number[] {
     const timelines = new Array<number>();
 
@@ -584,7 +791,7 @@ function createSlotTimeline(value: dbft.SlotTimeline): number[] {
     return timelines;
 }
 
-function createFFDTimeline(value: dbft.FFDTimeline): number[] {
+function createMeshDeformTimeline(value: dbft.MeshDeformTimeline): number[] {
     const timelines = new Array<number>();
 
     const mesh = currentArmature.getMesh(value.skin, value.slot, value.name);
@@ -598,11 +805,11 @@ function createFFDTimeline(value: dbft.FFDTimeline): number[] {
         let y = 0.0;
         let iB = 0;
         if (mesh.weights.length > 0) {
-            helpMatrixA.copyFromArray(mesh.slotPose, 0);
-            frameFloatArray.length += mesh._weightCount * 2;
+            geom.helpMatrixA.copyFromArray(mesh.slotPose, 0);
+            // frameFloatArray.length += mesh._weightCount * 2; // TODO CK
         }
         else {
-            frameFloatArray.length += vertexCount * 2;
+            // frameFloatArray.length += vertexCount * 2;
         }
 
         const vertices = new Array<number>();
@@ -634,17 +841,17 @@ function createFFDTimeline(value: dbft.FFDTimeline): number[] {
             if (mesh.weights.length > 0) { // If mesh is skinned, transform point by bone bind pose.
                 const vertexBoneCount = mesh.weights[iB++];
 
-                helpMatrixA.transformPoint(x, y, helpPoint, true);
-                x = helpPoint.x;
-                y = helpPoint.y;
+                geom.helpMatrixA.transformPoint(x, y, geom.helpPointA, true);
+                x = geom.helpPointA.x;
+                y = geom.helpPointA.y;
 
                 for (let j = 0; j < vertexBoneCount; ++j) {
                     const rawBoneIndex = mesh.weights[iB];
-                    helpMatrixB.copyFromArray(mesh.bonePose, mesh.getBonePoseOffset(rawBoneIndex) + 1);
-                    helpMatrixB.invert();
-                    helpMatrixB.transformPoint(x, y, helpPoint, true);
+                    geom.helpMatrixB.copyFromArray(mesh.bonePose, mesh.getBonePoseOffset(rawBoneIndex) + 1);
+                    geom.helpMatrixB.invert();
+                    geom.helpMatrixB.transformPoint(x, y, geom.helpPointA, true);
 
-                    vertices.push(helpPoint.x, helpPoint.y);
+                    vertices.push(geom.helpPointA.x, geom.helpPointA.y);
                     iB += 2;
                 }
             }
@@ -700,11 +907,11 @@ function createFFDTimeline(value: dbft.FFDTimeline): number[] {
     const frameIntOffset = frameIntArray.length;
     const valueCount = end - begin + 1;
     frameIntArray.length += 5;
-    frameIntArray[frameIntOffset + dbft.BinaryOffset.FFDTimelineMeshOffset] = mesh.offset; // Mesh offset.
-    frameIntArray[frameIntOffset + dbft.BinaryOffset.FFDTimelineFFDCount] = count; // FFD count.
-    frameIntArray[frameIntOffset + dbft.BinaryOffset.FFDTimelineValueCount] = valueCount; // Value count.
-    frameIntArray[frameIntOffset + dbft.BinaryOffset.FFDTimelineValueOffset] = begin; // Value offset.
-    frameIntArray[frameIntOffset + dbft.BinaryOffset.FFDTimelineFloatOffset] = frameFloatArray.length - currentAnimationBinary.offset[dbft.OffsetOrder.FrameFloat]; // Float offset.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformMeshOffset] = mesh.offset; // Mesh offset.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformCount] = count; // Deform count.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformValueCount] = valueCount; // Value count.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformValueOffset] = begin; // Value offset.
+    frameIntArray[frameIntOffset + dbft.BinaryOffset.DeformFloatOffset] = frameFloatArray.length - currentAnimationBinary.offset[dbft.OffsetOrder.FrameFloat]; // Float offset.
 
     for (let i = 0; i < begin; ++i) {
         frameFloatArray.push(firstValues[i]);
@@ -726,7 +933,7 @@ function createFFDTimeline(value: dbft.FFDTimeline): number[] {
     // Get more infomation form value count offset.
     timelineArray[timelineOffset + dbft.BinaryOffset.TimelineFrameValueCount] = frameIntOffset - currentAnimationBinary.offset[dbft.OffsetOrder.FrameInt];
 
-    timelines.push(dbft.TimelineType.SlotFFD);
+    timelines.push(dbft.TimelineType.MeshDeform);
     timelines.push(timelineOffset);
 
     return timelines;

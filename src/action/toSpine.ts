@@ -1,12 +1,15 @@
 // import { Map } from "../common/types";
 import {getEnumFormString} from "../common/safeutils";
+import * as utilsFT from "../format/utils";
 import * as geom from "../format/geom";
 import * as dbft from "../format/dragonBonesFormat";
 import * as spft from "../format/spineFormat";
 
 type ResultType = { spines: spft.Spine[], textureAtlas: string };
-
-export default function (data: dbft.DragonBones, version: string): ResultType {
+/**
+ * Convert DragonBones format to Spine format.
+ */
+export default function (data: dbft.DragonBones, version: string, addTextureAtlasSuffix: boolean): ResultType {
     const result: ResultType = { spines: [], textureAtlas: "" };
 
     for (const armature of data.armature) {
@@ -34,7 +37,20 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
             spBone.scaleY = bone.transform.scY;
             spBone.name = bone.name;
             spBone.parent = bone.parent;
-            // spBone.transform; // TODO
+
+            if (spBone.inheritRotation && spBone.inheritScale) {
+                spBone.transform = "normal";
+            }
+            else if (spBone.inheritRotation && !spBone.inheritScale) {
+                spBone.transform = "noScale";
+            }
+            else if (!spBone.inheritRotation && spBone.inheritScale) {
+                spBone.transform = "noRotationOrReflection";
+            }
+            else {
+                spBone.transform = "onlyTranslation";
+            }
+
             spine.bones.push(spBone);
         }
 
@@ -44,11 +60,11 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
             const spSlot = new spft.Slot();
             spSlot.name = slot.name;
             spSlot.bone = slot.parent;
-            spSlot.color = (
-                Math.round(slot.color.rM * 2.55).toString(16) +
-                Math.round(slot.color.gM * 2.55).toString(16) +
-                Math.round(slot.color.bM * 2.55).toString(16) +
-                Math.round(slot.color.aM * 2.55).toString(16)
+            spSlot.color = utilsFT.rgbaToHex(
+                Math.round(slot.color.rM * 2.55),
+                Math.round(slot.color.gM * 2.55),
+                Math.round(slot.color.bM * 2.55),
+                Math.round(slot.color.aM * 2.55)
             ).toUpperCase();
 
             switch (getEnumFormString(dbft.BlendMode, slot.blendMode)) {
@@ -73,7 +89,10 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                 if (defaultSkin !== null) {
                     const skinSlot = defaultSkin.getSlot(slot.name);
                     if (skinSlot !== null) {
-                        spSlot.attachment = skinSlot.display[slot.displayIndex].name; //
+                        const display = skinSlot.display[slot.displayIndex];
+                        if (display) {
+                            spSlot.attachment = display.name;
+                        }
                     }
                 }
             }
@@ -145,35 +164,36 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                         }
 
                         if (display.weights.length > 0) {
-                            geom.helpMatrixA.copyFromArray(display.slotPose);
-
                             for (let i = 0, iW = 0, l = display.vertices.length;
                                 i < l;
                                 i += 2
                             ) {
-                                let x = display.vertices[i];
-                                let y = display.vertices[i + 1];
-                                geom.helpMatrixA.transformPoint(x, y, geom.helpPoint);
-                                x = geom.helpPoint.x;
-                                y = geom.helpPoint.y;
+                                const x = display.vertices[i];
+                                const y = display.vertices[i + 1];
                                 const boneCount = display.weights[iW++];
                                 spAttachment.vertices.push(boneCount);
                                 for (let j = 0; j < boneCount; ++j) {
                                     const boneIndex = display.weights[iW++];
                                     const boneWeight = display.weights[iW++];
-                                    geom.helpMatrixB.copyFromArray(display.bonePose, display.getBonePoseOffset(boneIndex) + 1);
-                                    geom.helpMatrixB.invert();
-                                    geom.helpMatrixB.transformPoint(x, y, geom.helpPoint);
+                                    geom.helpMatrixA.copyFromArray(display.bonePose, display.getBonePoseOffset(boneIndex) + 1);
+                                    geom.helpMatrixA.invert();
+                                    geom.helpMatrixA.transformPoint(x, y, geom.helpPointA);
 
-                                    spAttachment.vertices.push(boneIndex, Number(geom.helpPoint.x.toFixed(2)), -Number((geom.helpPoint.y).toFixed(2)), boneWeight);
+                                    spAttachment.vertices.push(
+                                        boneIndex,
+                                        Number(geom.helpPointA.x.toFixed(2)),
+                                        -Number((geom.helpPointA.y).toFixed(2)),
+                                        boneWeight
+                                    );
                                 }
                             }
                         }
                         else {
-                            display.transform.toMatrix(geom.helpMatrixA);
                             for (let i = 0, l = display.vertices.length; i < l; i += 2) {
-                                geom.helpMatrixA.transformPoint(display.vertices[i], display.vertices[i + 1], geom.helpPoint);
-                                spAttachment.vertices.push(Number(geom.helpPoint.x.toFixed(2)), -Number((geom.helpPoint.y).toFixed(2)));
+                                spAttachment.vertices.push(
+                                    Number(display.vertices[i].toFixed(2)),
+                                    -Number(display.vertices[i + 1].toFixed(2))
+                                );
                             }
                         }
 
@@ -181,7 +201,7 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                     }
                     else if (display instanceof dbft.SharedMeshDisplay) {
                         const spAttachment = new spft.LinkedMeshAttachment();
-                        spAttachment.deform = display.inheritFFD;
+                        spAttachment.deform = display.inheritDeform;
                         spAttachment.name = display.name;
                         spAttachment.parent = display.share;
                         spAttachment.skin = skinName;
@@ -191,7 +211,12 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                         const spAttachment = new spft.BoundingBoxAttachment();
                         spAttachment.vertexCount = display.vertices.length / 2;
                         spAttachment.name = display.name;
-                        spAttachment.vertices = display.vertices;
+
+                        for (let i = 0, l = display.vertices.length; i < l; i += 2) {
+                            spAttachment.vertices[i] = display.vertices[i];
+                            spAttachment.vertices[i + 1] = -display.vertices[i + 1];
+                        }
+
                         spSlots[spAttachment.name] = spAttachment;
                     }
                 }
@@ -389,7 +414,10 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                         spFrame.name = "";
                     }
                     else {
-                        spFrame.name = skinSlot.display[frame.value].name;
+                        const display = skinSlot.display[frame.value];
+                        if (display) {
+                            spFrame.name = display.name;
+                        }
                     }
 
                     position += frame.duration / frameRate;
@@ -404,11 +432,11 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                     setCurveFormDB(spFrame, frame, iF++ === timeline.colorFrame.length - 1);
                     spTimelines.color.push(spFrame);
 
-                    spFrame.color = (
-                        Math.round(frame.value.rM * 2.55).toString(16) +
-                        Math.round(frame.value.gM * 2.55).toString(16) +
-                        Math.round(frame.value.bM * 2.55).toString(16) +
-                        Math.round(frame.value.aM * 2.55).toString(16)
+                    spFrame.color = utilsFT.rgbaToHex(
+                        Math.round(frame.value.rM * 2.55),
+                        Math.round(frame.value.gM * 2.55),
+                        Math.round(frame.value.bM * 2.55),
+                        Math.round(frame.value.aM * 2.55)
                     ).toUpperCase();
 
                     position += frame.duration / frameRate;
@@ -426,7 +454,6 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                 }
 
                 slots[timeline.name] = deformFrames;
-                meshDisplay.transform.toMatrix(geom.helpMatrixA);
 
                 iF = 0;
                 position = 0.0;
@@ -448,20 +475,8 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
                         spFrame.vertices.push(0.0);
                     }
 
-                    if (meshDisplay.weights.length > 0) {
-                        //TODO
-                    }
-                    else {
-                        for (let j = 0, lJ = spFrame.vertices.length; j < lJ; j += 2) {
-                            const x = meshDisplay.vertices[j];
-                            const y = meshDisplay.vertices[j + 1];
-                            geom.helpMatrixA.transformPoint(x, y, geom.helpPoint);
-                            const xP = geom.helpPoint.x;
-                            const yP = geom.helpPoint.y;
-                            geom.helpMatrixA.transformPoint(x + spFrame.vertices[j], y + spFrame.vertices[j + 1], geom.helpPoint);
-                            spFrame.vertices[j] = Number((geom.helpPoint.x - xP).toFixed(2));
-                            spFrame.vertices[j + 1] = -Number((geom.helpPoint.y - yP).toFixed(2));
-                        }
+                    for (let i = 0, l = spFrame.vertices.length; i < l; i += 2) {
+                        spFrame.vertices[i + 1] = -spFrame.vertices[i + 1];
                     }
 
                     let begin = 0;
@@ -512,7 +527,7 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
     let index = data.textureAtlas.length > 1 ? 0 : -1;
     for (const textureAtlas of data.textureAtlas) {
         result.textureAtlas += `\n`;
-        result.textureAtlas += `${data.name}_spine${data.textureAtlas.length > 1 ? "_" + index : ""}.png\n`;
+        result.textureAtlas += `${data.name}${addTextureAtlasSuffix ? "_spine" : ""}${data.textureAtlas.length > 1 ? "_" + index : ""}.png\n`;
         result.textureAtlas += `size: ${textureAtlas.width},${textureAtlas.height}\n`;
         result.textureAtlas += `format: RGBA8888\n`;
         result.textureAtlas += `filter: Linear,Linear\n`;
@@ -520,15 +535,11 @@ export default function (data: dbft.DragonBones, version: string): ResultType {
 
         for (const texture of textureAtlas.SubTexture) {
             result.textureAtlas += `${texture.name}\n`;
-            result.textureAtlas += `  rotate: ${texture.rotated}\n`; // TODO
+            result.textureAtlas += `  rotate: ${texture.rotated}\n`; // TODO db rotate is reverse to spine 
             result.textureAtlas += `  xy: ${texture.x}, ${texture.y}\n`;
             result.textureAtlas += `  size: ${texture.width}, ${texture.height}\n`;
-
-            if (texture.frameX || texture.frameY || texture.frameWidth || texture.frameHeight) {
-                result.textureAtlas += `  orig: ${texture.frameWidth || texture.width}, ${texture.frameHeight || texture.height}\n`;
-                result.textureAtlas += `  offset: ${texture.frameX}, ${texture.frameY}\n`;
-            }
-
+            result.textureAtlas += `  orig: ${texture.frameWidth || texture.width}, ${texture.frameHeight || texture.height}\n`;
+            result.textureAtlas += `  offset: ${-(texture.frameX || 0)}, ${texture.frameHeight > 0 ? texture.frameHeight + texture.frameY - (texture.rotated ? texture.width : texture.height) : 0}\n`;
             result.textureAtlas += `  index: ${index}\n`;
         }
 

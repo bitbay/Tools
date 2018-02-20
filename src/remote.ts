@@ -144,6 +144,16 @@ gate.actions["/convert"] = (request, response) => {
                                 "string"
                             )
                         );
+                        // TODO
+                        for (const armature of dragonBonesData.armature) {
+                            if (armature.ik) {
+                                for (const ik of armature.ik) {
+                                    if (ik.bendPositive === false) {
+                                        ik.bendPositive = "false" as any;
+                                    }
+                                }
+                            }
+                        }
                         break;
                     }
 
@@ -170,6 +180,8 @@ gate.actions["/convert"] = (request, response) => {
                     case "player":
                     case "viewer": {
                         toNew(dragonBonesData, true);
+                        format(dragonBonesData);
+                        
                         const result = toWeb(
                             {
                                 data: new Buffer(toBinary(dragonBonesData)),
@@ -194,7 +206,7 @@ gate.actions["/convert"] = (request, response) => {
                     case "spine": {
                         toNew(dragonBonesData, true);
                         format(dragonBonesData);
-                        const result = toSpine(dragonBonesData, input.config);
+                        const result = toSpine(dragonBonesData, input.config, false);
 
                         for (const spine of result.spines) {
                             if (input.compress !== false) {
@@ -246,10 +258,10 @@ function execute(): void {
             const url = `http://${utils.findIP()}:${port}/dragonbones`;
 
             gate.actions["/working_directory"] = (request, response) => {
-                let jsonString = "";
+                // let jsonString = "";
 
-                request.addListener("data", (data: any) => {
-                    jsonString += data;
+                request.addListener("data", () => {
+                    // jsonString += data;
                 });
 
                 request.addListener("end", () => {

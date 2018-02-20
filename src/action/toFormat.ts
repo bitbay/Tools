@@ -2,9 +2,9 @@ import {copyFromObject} from "../common/safeutils";
 import * as geom from "../format/geom";
 import * as dbft from "../format/dragonBonesFormat";
 import * as dbftV23 from "../format/dragonBonesFormatV23";
-
-const normalColor = new geom.ColorTransform();
-
+/**
+ * Convert json string to DragonBones format.
+ */
 export default function (data: string | any, getTextureAtlases: () => dbft.TextureAtlas[]): dbft.DragonBones | null {
     if ((typeof data === 'string' && !dbft.isDragonBonesString(data)) || !dbft.isDragonBonesObject(data) ) {
         return null;
@@ -25,36 +25,21 @@ export default function (data: string | any, getTextureAtlases: () => dbft.Textu
         const result = new dbft.DragonBones();
         copyFromObject(result, json, dbft.copyConfig);
 
-        for (const armature of result.armature) {
-            for (const animation of armature.animation) {
-                if (animation instanceof dbft.AnimationBinary) {
-                    continue;
-                }
-
-                for (const timeline of animation.slot) {
-                    for (const colorFrame of timeline.colorFrame) {
-                        if (!colorFrame.color.equal(normalColor) && colorFrame.value.equal(normalColor)) {
-                            colorFrame.value.copyFrom(colorFrame.color);
-                        }
-
-                        colorFrame.color.identity();
-                    }
-                }
-            }
-        }
-
         return result;
     }
     catch (error) {
-        return null;
     }
+
+    return null;
 }
 
 let textureAtlases: dbft.TextureAtlas[];
 const helpMatrix = new geom.Matrix();
 const helpTransform = new geom.Transform();
 const helpPoint = new geom.Point();
-
+/**
+ * Convert v2 v3 to v4 v5.
+ */
 function V23ToV45(data: dbftV23.DragonBones): dbft.DragonBones | null {
     const result = new dbft.DragonBones();
 
@@ -348,4 +333,3 @@ function getTimelineFrameMatrix(timeline: dbft.BoneTimeline, framePosition: numb
         transform.scY = currentFrame.transform.scY + transform.scY * tweenProgress;
     }
 }
-

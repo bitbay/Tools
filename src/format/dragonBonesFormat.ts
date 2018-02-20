@@ -1,6 +1,7 @@
 import { Map } from "../common/types";
 import { getEnumFormString } from "../common/safeutils";
-import { Matrix, Transform, ColorTransform, Point, Rectangle, helpPoint } from "./geom";
+import { Matrix, Transform, ColorTransform, Point, Rectangle, helpPointA } from "./geom";
+
 import * as geom from "./geom";
 import * as dbftV23 from "./dragonBonesFormatV23";
 /**
@@ -56,11 +57,11 @@ export enum BinaryOffset {
     ActionFrameActionCount = 1,
     ActionFrameActionIndices = 2,
 
-    FFDTimelineMeshOffset = 0,
-    FFDTimelineFFDCount = 1,
-    FFDTimelineValueCount = 2,
-    FFDTimelineValueOffset = 3,
-    FFDTimelineFloatOffset = 4
+    DeformMeshOffset = 0,
+    DeformCount = 1,
+    DeformValueCount = 2,
+    DeformValueOffset = 3,
+    DeformFloatOffset = 4
 }
 
 export enum ArmatureType {
@@ -70,11 +71,17 @@ export enum ArmatureType {
     ImageSequences = 3
 }
 
+export enum BoneType {
+    Bone = 0,
+    Surface = 1
+}
+
 export enum DisplayType {
     Image = 0,
     Armature = 1,
     Mesh = 2,
-    BoundingBox = 3
+    BoundingBox = 3,
+    Path = 4
 }
 
 export enum BoundingBoxType {
@@ -115,9 +122,11 @@ export enum TimelineType {
     BoneRotate = 12,
     BoneScale = 13,
 
+    Surface = 50,
+
     SlotDisplay = 20,
     SlotColor = 21,
-    SlotFFD = 22,
+    MeshDeform = 22,
 
     IKConstraint = 30,
 
@@ -132,6 +141,14 @@ export enum TweenType {
     QuadIn = 3,
     QuadOut = 4,
     QuadInOut = 5
+}
+
+export interface VerticesData {
+    offset: number;
+    vertexCount: number;
+    readonly vertices: number[];
+    readonly weights: number[];
+    readonly bones: number[];
 }
 
 export function isDragonBonesString(string: string): boolean {
@@ -200,44 +217,8 @@ export function getCurvePoint(x1: number, y1: number, x2: number, y2: number, x3
 export function getCurveEasingValue(t: number, curve: number[]): number {
     const curveCount = curve.length;
 
-    let stepIndex = -2;
-    while ((stepIndex + 6 < curveCount ? curve[stepIndex + 6] : 1) < t) { // stepIndex + 3 * 2
-        stepIndex += 6;
-    }
-
-    const isInCurve = stepIndex >= 0 && stepIndex + 6 < curveCount;
-    const x1 = isInCurve ? curve[stepIndex] : 0.0;
-    const y1 = isInCurve ? curve[stepIndex + 1] : 0.0;
-    const x2 = curve[stepIndex + 2];
-    const y2 = curve[stepIndex + 3];
-    const x3 = curve[stepIndex + 4];
-    const y3 = curve[stepIndex + 5];
-    const x4 = isInCurve ? curve[stepIndex + 6] : 1.0;
-    const y4 = isInCurve ? curve[stepIndex + 7] : 1.0;
-
-    let lower = 0.0;
-    let higher = 1.0;
-    while (higher - lower > 0.01) {
-        const percentage = (higher + lower) / 2.0;
-        getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPoint);
-        if (t - helpPoint.x > 0.0) {
-            lower = percentage;
-        }
-        else {
-            higher = percentage;
-        }
-    }
-
-    return helpPoint.y;
-}
-
-export function samplingEasingCurve(curve: Array<number>, samples: Array<number>): void {
-    const curveCount = curve.length;
-    const result = new Point();
-
-    let stepIndex = -2;
-    for (let i = 0, l = samples.length; i < l; ++i) {
-        let t = (i + 1) / (l + 1);
+    if (curveCount % 3 === 1) {
+        let stepIndex = -2;
         while ((stepIndex + 6 < curveCount ? curve[stepIndex + 6] : 1) < t) { // stepIndex + 3 * 2
             stepIndex += 6;
         }
@@ -254,10 +235,11 @@ export function samplingEasingCurve(curve: Array<number>, samples: Array<number>
 
         let lower = 0.0;
         let higher = 1.0;
-        while (higher - lower > 0.0001) {
+        while (higher - lower > 0.01) {
             const percentage = (higher + lower) / 2.0;
-            getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, result);
-            if (t - result.x > 0.0) {
+            getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPointA);
+
+            if (t - helpPointA.x > 0.0) {
                 lower = percentage;
             }
             else {
@@ -265,7 +247,115 @@ export function samplingEasingCurve(curve: Array<number>, samples: Array<number>
             }
         }
 
-        samples[i] = result.y;
+        return helpPointA.y;
+    }
+    else {
+        let stepIndex = 0;
+        while (curve[stepIndex + 6] < t) { // stepIndex + 3 * 2
+            stepIndex += 6;
+        }
+
+        const x1 = curve[stepIndex];
+        const y1 = curve[stepIndex + 1];
+        const x2 = curve[stepIndex + 2];
+        const y2 = curve[stepIndex + 3];
+        const x3 = curve[stepIndex + 4];
+        const y3 = curve[stepIndex + 5];
+        const x4 = curve[stepIndex + 6];
+        const y4 = curve[stepIndex + 7];
+
+        let lower = 0.0;
+        let higher = 1.0;
+        while (higher - lower > 0.01) {
+            const percentage = (higher + lower) / 2.0;
+            getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPointA);
+
+            if (t - helpPointA.x > 0.0) {
+                lower = percentage;
+            }
+            else {
+                higher = percentage;
+            }
+        }
+
+        return helpPointA.y;
+    }
+}
+
+export function samplingEasingCurve(curve: Array<number>, samples: Array<number>): boolean {
+    const curveCount = curve.length;
+
+    if (curveCount % 3 === 1) {
+        let stepIndex = -2;
+        for (let i = 0, l = samples.length; i < l; ++i) {
+            let t = (i + 1) / (l + 1);
+            while ((stepIndex + 6 < curveCount ? curve[stepIndex + 6] : 1) < t) { // stepIndex + 3 * 2
+                stepIndex += 6;
+            }
+
+            const isInCurve = stepIndex >= 0 && stepIndex + 6 < curveCount;
+            const x1 = isInCurve ? curve[stepIndex] : 0.0;
+            const y1 = isInCurve ? curve[stepIndex + 1] : 0.0;
+            const x2 = curve[stepIndex + 2];
+            const y2 = curve[stepIndex + 3];
+            const x3 = curve[stepIndex + 4];
+            const y3 = curve[stepIndex + 5];
+            const x4 = isInCurve ? curve[stepIndex + 6] : 1.0;
+            const y4 = isInCurve ? curve[stepIndex + 7] : 1.0;
+
+            let lower = 0.0;
+            let higher = 1.0;
+            while (higher - lower > 0.0001) {
+                const percentage = (higher + lower) / 2.0;
+                getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, geom.helpPointA);
+
+                if (t - geom.helpPointA.x > 0.0) {
+                    lower = percentage;
+                }
+                else {
+                    higher = percentage;
+                }
+            }
+
+            samples[i] = geom.helpPointA.y;
+        }
+
+        return true;
+    }
+    else {
+        let stepIndex = 0;
+        for (let i = 0, l = samples.length; i < l; ++i) {
+            let t = (i + 1) / (l + 1);
+            while (curve[stepIndex + 6] < t) { // stepIndex + 3 * 2
+                stepIndex += 6;
+            }
+
+            const x1 = curve[stepIndex];
+            const y1 = curve[stepIndex + 1];
+            const x2 = curve[stepIndex + 2];
+            const y2 = curve[stepIndex + 3];
+            const x3 = curve[stepIndex + 4];
+            const y3 = curve[stepIndex + 5];
+            const x4 = curve[stepIndex + 6];
+            const y4 = curve[stepIndex + 7];
+
+            let lower = 0.0;
+            let higher = 1.0;
+            while (higher - lower > 0.0001) {
+                const percentage = (higher + lower) / 2.0;
+                getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, geom.helpPointA);
+                if (t - geom.helpPointA.x > 0.0) {
+                    lower = percentage;
+                }
+                else {
+                    higher = percentage;
+                }
+            }
+
+            samples[i] = geom.helpPointA.y;
+        }
+
+        return false;
     }
 }
 
@@ -365,6 +455,7 @@ export function mergeActionToAnimation(
     }
 
     let position = 0;
+    let frameIndex = 0;
     let insertFrame: ActionFrame | null = null;
     let prevFrame: ActionFrame | null = null;
     for (let i = 0, l = frames.length; i < l; ++i) {
@@ -383,6 +474,14 @@ export function mergeActionToAnimation(
 
         position += eachFrame.duration;
         prevFrame = eachFrame;
+        frameIndex++;
+    }
+
+    if (insertFrame === null && prevFrame !== null) {
+        prevFrame.duration = framePosition;
+        insertFrame = new ActionFrame();
+        insertFrame.duration = position - framePosition;
+        frames.splice(frameIndex, 0, insertFrame);
     }
 
     if (insertFrame !== null) {
@@ -449,6 +548,7 @@ export class DragonBones {
     compatibleVersion: string = "";
     readonly armature: Armature[] = [];
     readonly offset: number[] = []; // Binary.
+    readonly tag: number[] = []; // Binary.
     readonly textureAtlas: TextureAtlas[] = [];
     userData: UserData | null = null;
 }
@@ -487,6 +587,7 @@ export class Armature {
     readonly bone: Bone[] = [];
     readonly slot: Slot[] = [];
     readonly ik: IKConstraint[] = [];
+    readonly path: PathConstraint[] = [];
     readonly skin: Skin[] = [];
     readonly animation: (Animation | AnimationBinary)[] = []; // Binary.
     readonly defaultActions: (OldAction | Action)[] = [];
@@ -631,6 +732,7 @@ export class Armature {
 }
 
 export class Bone {
+    type: BoneType | string = BoneType[BoneType.Bone].toLowerCase();
     inheritTranslation: boolean = true;
     inheritRotation: boolean = true;
     inheritScale: boolean = true;
@@ -642,6 +744,18 @@ export class Bone {
     userData: UserData | null = null;
 
     _global: Transform | null = null;
+}
+
+export class Surface extends Bone {
+    segmentX: number = 0;
+    segmentY: number = 0;
+    readonly vertices: number[] = [];
+
+    constructor() {
+        super();
+
+        this.type = BoneType[BoneType.Surface].toLowerCase();
+    }
 }
 
 export class Slot {
@@ -663,6 +777,22 @@ export class IKConstraint {
     target: string = "";
 }
 
+export class PathConstraint {
+    name: string = "";
+    target: string = "";
+    bones: string[] = [];
+
+    positionMode: "fixed" | "percent" = "percent";
+    spacingMode: "length" | "fixed" | "percent" = "length";
+    rotateMode: "tangent" | "chain" | "chain scale" = "tangent";
+
+    position: number = 0;
+    spacing: number = 0;
+    rotateOffset: number = 0;
+    rotateMix: number = 0;
+    translateMix: number = 0;
+}
+
 export class Skin {
     name: string = "default";
     readonly slot: SkinSlot[] = [];
@@ -681,12 +811,12 @@ export class Skin {
 
 export class SkinSlot {
     name: string = "";
-    readonly display: Display[] = [];
+    readonly display: (Display | null)[] = [];
     readonly actions: OldAction[] = []; // Deprecated.
 
     getDisplay(name: string): Display | null {
         for (const display of this.display) {
-            if (display.name === name) {
+            if (display && display.name === name) {
                 return display;
             }
         }
@@ -699,6 +829,9 @@ export abstract class Display {
     type: DisplayType | string = DisplayType[DisplayType.Image].toLowerCase();
     name: string = "";
     readonly transform: Transform = new Transform();
+
+    clearToBinary(): void {
+    }
 }
 
 export abstract class BoundingBoxDisplay extends Display {
@@ -712,6 +845,7 @@ export class ImageDisplay extends Display {
 
     constructor(isDefault: boolean = false) {
         super();
+
         if (!isDefault) {
             this.type = DisplayType[DisplayType.Image].toLowerCase();
         }
@@ -743,12 +877,15 @@ export class MeshDisplay extends Display {
     readonly weights: number[] = [];
     readonly slotPose: number[] = [];
     readonly bonePose: number[] = [];
+    readonly glueWeights: number[] = [];
+    readonly glueMeshes: string[] = [];
 
-    edges: number[] = []; // Nonessential.
-    userEdges: number[] = []; // Nonessential.
+    readonly edges: number[] = []; // Nonessential.
+    readonly userEdges: number[] = []; // Nonessential.
 
     _boneCount: number = 0;
     _weightCount: number = 0;
+    _userEdges: boolean = true; // TODO
 
     constructor(isDefault: boolean = false) {
         super();
@@ -784,16 +921,44 @@ export class MeshDisplay extends Display {
 }
 
 export class SharedMeshDisplay extends Display {
-    inheritFFD: boolean = true;
+    inheritDeform: boolean = true;
     path: string = "";
     share: string = "";
-    skin: string = "";
+    skin: string = "default";
 
     constructor(isDefault: boolean = false) {
         super();
+
         if (!isDefault) {
             this.type = DisplayType[DisplayType.Mesh].toLowerCase();
         }
+    }
+}
+
+export class PathDisplay extends Display implements VerticesData {
+    offset: number = -1; // Binary.
+
+    closed: boolean = false;
+    constantSpeed: boolean = false;
+    vertexCount: number = 0;
+    readonly vertices: number[] = [];
+    readonly lengths: number[] = [];
+    readonly weights: number[] = [];
+    readonly bones: number[] = [];
+
+    constructor(isDefault: boolean = false) {
+        super();
+
+        if (!isDefault) {
+            this.type = DisplayType[DisplayType.Path].toLowerCase();
+        }
+    }
+
+    clearToBinary(): void {
+        this.vertexCount = 0;
+        this.vertices.length = 0;
+        this.weights.length = 0;
+        this.bones.length = 0;
     }
 }
 
@@ -803,6 +968,7 @@ export class RectangleBoundingBoxDisplay extends BoundingBoxDisplay {
 
     constructor(isDefault: boolean = false) {
         super();
+
         if (!isDefault) {
             this.type = DisplayType[DisplayType.BoundingBox].toLowerCase();
             this.subType = BoundingBoxType[BoundingBoxType.Rectangle].toLowerCase();
@@ -816,6 +982,7 @@ export class EllipseBoundingBoxDisplay extends BoundingBoxDisplay {
 
     constructor(isDefault: boolean = false) {
         super();
+
         if (!isDefault) {
             this.type = DisplayType[DisplayType.BoundingBox].toLowerCase();
             this.subType = BoundingBoxType[BoundingBoxType.Ellipse].toLowerCase();
@@ -823,15 +990,27 @@ export class EllipseBoundingBoxDisplay extends BoundingBoxDisplay {
     }
 }
 
-export class PolygonBoundingBoxDisplay extends BoundingBoxDisplay {
-    vertices: number[] = [];
+export class PolygonBoundingBoxDisplay extends BoundingBoxDisplay implements VerticesData {
+    offset: number = -1; // Binary.
+    vertexCount: number = 0;
+    readonly vertices: number[] = [];
+    readonly weights: number[] = [];
+    readonly bones: number[] = [];
 
     constructor(isDefault: boolean = false) {
         super();
+
         if (!isDefault) {
             this.type = DisplayType[DisplayType.BoundingBox].toLowerCase();
             this.subType = BoundingBoxType[BoundingBoxType.Polygon].toLowerCase();
         }
+    }
+
+    clearToBinary(): void {
+        this.vertexCount = 0;
+        // this.vertices.length = 0;
+        this.weights.length = 0;
+        this.bones.length = 0;
     }
 }
 
@@ -843,9 +1022,11 @@ export class Animation {
     name: string = "default";
     readonly frame: ActionFrame[] = [];
     readonly bone: BoneTimeline[] = [];
+    readonly surface: SurfaceTimeline[] = [];
     readonly slot: SlotTimeline[] = [];
-    readonly ffd: FFDTimeline[] = [];
+    readonly ffd: MeshDeformTimeline[] = [];
     readonly ik: IKConstraintTimeline[] = [];
+    readonly animation: AnimationTimeline[] = [];
     zOrder: ZOrderTimeline | null = null;
 
     getSlotTimeline(name: string): SlotTimeline | null {
@@ -880,6 +1061,7 @@ export class AnimationBinary {
     zOrder: number = -1;
     readonly offset: number[] = [];
     readonly bone: Map<number[]> = {};
+    readonly surface: Map<number[]> = {};
     readonly slot: Map<number[]> = {};
     readonly constraint: Map<number[]> = {};
 }
@@ -1071,6 +1253,10 @@ export class BoneTimeline extends Timeline {
     }
 }
 
+export class SurfaceTimeline extends Timeline {
+    readonly frame: DeformFrame[] = [];
+}
+
 export class SlotTimeline extends Timeline {
     readonly frame: SlotAllFrame[] = []; // Deprecated.
     readonly displayFrame: SlotDisplayFrame[] = [];
@@ -1185,85 +1371,20 @@ export class SlotTimeline extends Timeline {
 
         return index;
     }
-
-    insertFrameaaa(from: Frame, progress: number): Frame | null {
-        if (progress === 0.0) {
-            return null;
-        }
-
-        if (progress >= 1.0) {
-            return null;
-        }
-
-        let frames: Frame[];
-        let insert: Frame;
-        if (from instanceof SlotAllFrame) {
-            frames = this.frame;
-            insert = new SlotAllFrame();
-        }
-        else if (from instanceof SlotColorFrame) {
-            frames = this.colorFrame;
-            insert = new SlotColorFrame();
-        }
-        else {
-            return null;
-        }
-
-        const index = frames.indexOf(from) + 1;
-        if (index < 1 || index >= frames.length) {
-            return null;
-        }
-
-        const to = frames[index];
-        insert.duration = Math.floor(from.duration * progress);
-        from.duration -= insert.duration;
-        progress = from.getTweenProgress(progress);
-
-        if (from instanceof TweenFrame && insert instanceof TweenFrame) {
-            // TODO
-            insert.tweenEasing = from.tweenEasing;
-            //to.curve; 
-        }
-
-        frames.splice(index, 0, insert);
-
-        if (from instanceof SlotAllFrame && insert instanceof SlotAllFrame && to instanceof SlotAllFrame) {
-            insert.displayIndex = from.displayIndex;
-            insert.color.aM = from.color.aM + (to.color.aM - from.color.aM) * progress;
-            insert.color.rM = from.color.rM + (to.color.rM - from.color.rM) * progress;
-            insert.color.gM = from.color.gM + (to.color.gM - from.color.gM) * progress;
-            insert.color.bM = from.color.bM + (to.color.bM - from.color.bM) * progress;
-            insert.color.aO = from.color.aO + (to.color.aO - from.color.aO) * progress;
-            insert.color.rO = from.color.rO + (to.color.rO - from.color.rO) * progress;
-            insert.color.gO = from.color.gO + (to.color.gO - from.color.gO) * progress;
-            insert.color.bO = from.color.bO + (to.color.bO - from.color.bO) * progress;
-        }
-        else if (from instanceof SlotColorFrame && insert instanceof SlotColorFrame && to instanceof SlotColorFrame) {
-            insert.value.aM = from.value.aM + (to.value.aM - from.value.aM) * progress;
-            insert.value.rM = from.value.rM + (to.value.rM - from.value.rM) * progress;
-            insert.value.gM = from.value.gM + (to.value.gM - from.value.gM) * progress;
-            insert.value.bM = from.value.bM + (to.value.bM - from.value.bM) * progress;
-            insert.value.aO = from.value.aO + (to.value.aO - from.value.aO) * progress;
-            insert.value.rO = from.value.rO + (to.value.rO - from.value.rO) * progress;
-            insert.value.gO = from.value.gO + (to.value.gO - from.value.gO) * progress;
-            insert.value.bO = from.value.bO + (to.value.bO - from.value.bO) * progress;
-        }
-        else {
-            return null;
-        }
-
-        return insert;
-    }
 }
 
-export class FFDTimeline extends Timeline {
-    skin: string = "";
+export class MeshDeformTimeline extends Timeline {
+    skin: string = "default";
     slot: string = "";
-    readonly frame: FFDFrame[] = [];
+    readonly frame: DeformFrame[] = [];
 }
 
 export class IKConstraintTimeline extends Timeline {
     readonly frame: IKConstraintFrame[] = [];
+}
+
+export class AnimationTimeline extends Timeline {
+    readonly frame: AnimationFrame[] = [];
 }
 
 export abstract class Frame {
@@ -1414,6 +1535,25 @@ export class BoneScaleFrame extends TweenFrame {
     }
 }
 
+export class DeformFrame extends TweenFrame {
+    offset: number = 0;
+    vertices: number[] = [];
+
+    equal(value: this): boolean {
+        if (this.offset === value.offset && this.vertices.length === value.vertices.length) {
+            for (let i = 0, l = this.vertices.length; i < l; ++i) {
+                if (this.vertices[i] !== value.vertices[i]) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+}
+
 export class SlotAllFrame extends TweenFrame {
     displayIndex: number = 0;
     readonly color: ColorTransform = new ColorTransform();
@@ -1442,31 +1582,21 @@ export class SlotColorFrame extends TweenFrame {
     }
 }
 
-export class FFDFrame extends TweenFrame {
-    offset: number = 0;
-    vertices: number[] = [];
-
-    equal(value: this): boolean {
-        if (this.offset === value.offset && this.vertices.length === value.vertices.length) {
-            for (let i = 0, l = this.vertices.length; i < l; ++i) {
-                if (this.vertices[i] !== value.vertices[i]) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-}
-
 export class IKConstraintFrame extends TweenFrame {
     bendPositive: boolean = true;
     weight: number = 1.0;
 
     equal(value: this): boolean {
         return this.bendPositive === value.bendPositive && this.weight === value.weight;
+    }
+}
+
+export class AnimationFrame extends TweenFrame {
+    value: number = -1;
+    weight: number = 1.0;
+
+    equal(value: this): boolean {
+        return this.value === value.value && this.weight === value.weight;
     }
 }
 
@@ -1509,9 +1639,33 @@ export const copyConfig = [
         userData: UserData
     },
     Armature, {
-        bone: Bone,
+        bone: [
+            function (bone: any): { new(): (Bone | Surface) } | null {
+                let type = bone.type;
+                if (type !== undefined) {
+                    if (typeof type === "string") {
+                        type = getEnumFormString(BoneType, type, BoneType.Bone);
+                    }
+                }
+                else {
+                    type = BoneType.Bone;
+                }
+
+                switch (type) {
+                    case BoneType.Bone:
+                        return Bone;
+
+                    case BoneType.Surface:
+                        return Surface;
+                }
+
+                return null;
+            },
+            Function
+        ],
         slot: Slot,
         ik: IKConstraint,
+        path: PathConstraint,
         skin: Skin,
         animation: Animation,
         defaultActions: OldAction,
@@ -1557,6 +1711,9 @@ export const copyConfig = [
                             return MeshDisplay;
                         }
 
+                    case DisplayType.Path:
+                        return PathDisplay;
+
                     case DisplayType.BoundingBox:
                         {
                             let subType = display.subType;
@@ -1596,9 +1753,11 @@ export const copyConfig = [
         frame: ActionFrame,
         zOrder: ZOrderTimeline,
         bone: BoneTimeline,
+        surface: SurfaceTimeline,
         slot: SlotTimeline,
-        ffd: FFDTimeline,
-        ik: IKConstraintTimeline
+        ffd: MeshDeformTimeline,
+        ik: IKConstraintTimeline,
+        animation: AnimationTimeline
     },
     ZOrderTimeline, {
         frame: ZOrderFrame
@@ -1609,16 +1768,22 @@ export const copyConfig = [
         rotateFrame: BoneRotateFrame,
         scaleFrame: BoneScaleFrame,
     },
+    SurfaceTimeline, {
+        frame: DeformFrame,
+    },
     SlotTimeline, {
         frame: SlotAllFrame,
         displayFrame: SlotDisplayFrame,
         colorFrame: SlotColorFrame,
     },
-    FFDTimeline, {
-        frame: FFDFrame
+    MeshDeformTimeline, {
+        frame: DeformFrame
     },
     IKConstraintTimeline, {
         frame: IKConstraintFrame
+    },
+    AnimationTimeline, {
+        frame: AnimationFrame
     },
     ActionFrame, {
         actions: Action,
@@ -1643,12 +1808,15 @@ export const compressConfig = [
 
     new DragonBones(),
     new UserData(),
+    new OldAction(),
     new Action(),
     new Canvas(),
     new Armature(),
     new Bone(),
+    new Surface(),
     new Slot(),
     new IKConstraint(),
+    new PathConstraint(),
     new Skin(),
     new SkinSlot(),
 
@@ -1656,6 +1824,7 @@ export const compressConfig = [
     new ArmatureDisplay(true),
     new MeshDisplay(true),
     new SharedMeshDisplay(true),
+    new PathDisplay(true),
     new RectangleBoundingBoxDisplay(true),
     new EllipseBoundingBoxDisplay(true),
     new PolygonBoundingBoxDisplay(true),
@@ -1664,20 +1833,23 @@ export const compressConfig = [
     new AnimationBinary(),
     new ZOrderTimeline(),
     new BoneTimeline(),
+    new SurfaceTimeline(),
     new SlotTimeline(),
-    new FFDTimeline(),
+    new MeshDeformTimeline(),
     new IKConstraintTimeline(),
+    new AnimationTimeline(),
     new ActionFrame(),
     new ZOrderFrame(),
     new BoneAllFrame(),
     new BoneTranslateFrame(),
     new BoneRotateFrame(),
     new BoneScaleFrame(),
+    new DeformFrame(),
     new SlotAllFrame(),
     new SlotDisplayFrame(),
     new SlotColorFrame(),
-    new FFDFrame(),
     new IKConstraintFrame(),
+    new AnimationFrame(),
 
     new TextureAtlas(),
     new Texture()

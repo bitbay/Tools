@@ -1,7 +1,7 @@
 #! /usr/bin/env node
+let commander = require("commander");
 import * as fs from "fs-extra";
 import * as path from "path";
-import * as commander from "commander";
 import * as utils from "./common/utils";
 import * as dbft from "./format/dragonBonesFormat";
 import * as spft from "./format/spineFormat";

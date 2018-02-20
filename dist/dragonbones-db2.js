@@ -261,7 +261,7 @@
     }());
     var Transform = /** @class */ (function () {
         function Transform(x, y, skX, skY, scX, scY, pX, // Deprecated.
-            pY // Deprecated.
+        pY // Deprecated.
         ) {
             if (x === void 0) { x = 0.0; }
             if (y === void 0) { y = 0.0; }
@@ -473,7 +473,9 @@
     var helpMatrixA = new Matrix();
     var helpMatrixB = new Matrix();
     var helpTransformA = new Transform();
-    var helpPoint$1 = new Point();
+    var helpTransformB = new Transform();
+    var helpPointA = new Point();
+    var helpPointB = new Point();
 
     var __extends$1 = (this && this.__extends) || (function () {
         var extendStatics = Object.setPrototypeOf ||
@@ -621,7 +623,7 @@
         }
         return TweenFrame;
     }(Frame$1));
-    var AnimationFrame = /** @class */ (function (_super) {
+    var AnimationFrame$1 = /** @class */ (function (_super) {
         __extends$1(AnimationFrame, _super);
         function AnimationFrame() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -688,7 +690,7 @@
             slot: Slot$1
         },
         Animation$1, {
-            frame: AnimationFrame,
+            frame: AnimationFrame$1,
             timeline: AllTimeline
         },
         AllTimeline, {
@@ -739,12 +741,18 @@
         ArmatureType[ArmatureType["Stage"] = 2] = "Stage";
         ArmatureType[ArmatureType["ImageSequences"] = 3] = "ImageSequences";
     })(ArmatureType || (ArmatureType = {}));
+    var BoneType;
+    (function (BoneType) {
+        BoneType[BoneType["Bone"] = 0] = "Bone";
+        BoneType[BoneType["Surface"] = 1] = "Surface";
+    })(BoneType || (BoneType = {}));
     var DisplayType;
     (function (DisplayType) {
         DisplayType[DisplayType["Image"] = 0] = "Image";
         DisplayType[DisplayType["Armature"] = 1] = "Armature";
         DisplayType[DisplayType["Mesh"] = 2] = "Mesh";
         DisplayType[DisplayType["BoundingBox"] = 3] = "BoundingBox";
+        DisplayType[DisplayType["Path"] = 4] = "Path";
     })(DisplayType || (DisplayType = {}));
     var BoundingBoxType;
     (function (BoundingBoxType) {
@@ -814,32 +822,61 @@
     }
     function getCurveEasingValue(t, curve) {
         var curveCount = curve.length;
-        var stepIndex = -2;
-        while ((stepIndex + 6 < curveCount ? curve[stepIndex + 6] : 1) < t) {
-            stepIndex += 6;
-        }
-        var isInCurve = stepIndex >= 0 && stepIndex + 6 < curveCount;
-        var x1 = isInCurve ? curve[stepIndex] : 0.0;
-        var y1 = isInCurve ? curve[stepIndex + 1] : 0.0;
-        var x2 = curve[stepIndex + 2];
-        var y2 = curve[stepIndex + 3];
-        var x3 = curve[stepIndex + 4];
-        var y3 = curve[stepIndex + 5];
-        var x4 = isInCurve ? curve[stepIndex + 6] : 1.0;
-        var y4 = isInCurve ? curve[stepIndex + 7] : 1.0;
-        var lower = 0.0;
-        var higher = 1.0;
-        while (higher - lower > 0.01) {
-            var percentage = (higher + lower) / 2.0;
-            getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPoint$1);
-            if (t - helpPoint$1.x > 0.0) {
-                lower = percentage;
+        if (curveCount % 3 === 1) {
+            var stepIndex = -2;
+            while ((stepIndex + 6 < curveCount ? curve[stepIndex + 6] : 1) < t) {
+                stepIndex += 6;
             }
-            else {
-                higher = percentage;
+            var isInCurve = stepIndex >= 0 && stepIndex + 6 < curveCount;
+            var x1 = isInCurve ? curve[stepIndex] : 0.0;
+            var y1 = isInCurve ? curve[stepIndex + 1] : 0.0;
+            var x2 = curve[stepIndex + 2];
+            var y2 = curve[stepIndex + 3];
+            var x3 = curve[stepIndex + 4];
+            var y3 = curve[stepIndex + 5];
+            var x4 = isInCurve ? curve[stepIndex + 6] : 1.0;
+            var y4 = isInCurve ? curve[stepIndex + 7] : 1.0;
+            var lower = 0.0;
+            var higher = 1.0;
+            while (higher - lower > 0.01) {
+                var percentage = (higher + lower) / 2.0;
+                getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPointA);
+                if (t - helpPointA.x > 0.0) {
+                    lower = percentage;
+                }
+                else {
+                    higher = percentage;
+                }
             }
+            return helpPointA.y;
         }
-        return helpPoint$1.y;
+        else {
+            var stepIndex = 0;
+            while (curve[stepIndex + 6] < t) {
+                stepIndex += 6;
+            }
+            var x1 = curve[stepIndex];
+            var y1 = curve[stepIndex + 1];
+            var x2 = curve[stepIndex + 2];
+            var y2 = curve[stepIndex + 3];
+            var x3 = curve[stepIndex + 4];
+            var y3 = curve[stepIndex + 5];
+            var x4 = curve[stepIndex + 6];
+            var y4 = curve[stepIndex + 7];
+            var lower = 0.0;
+            var higher = 1.0;
+            while (higher - lower > 0.01) {
+                var percentage = (higher + lower) / 2.0;
+                getCurvePoint(x1, y1, x2, y2, x3, y3, x4, y4, percentage, helpPointA);
+                if (t - helpPointA.x > 0.0) {
+                    lower = percentage;
+                }
+                else {
+                    higher = percentage;
+                }
+            }
+            return helpPointA.y;
+        }
     }
     function getEasingValue(tweenType, progress, easing) {
         var value = progress;
@@ -855,52 +892,6 @@
                 break;
         }
         return (value - progress) * easing + progress;
-    }
-    function getEdgeFormTriangles(triangles) {
-        var edges = [];
-        var lines = {};
-        var addLine = function (a, b) {
-            if (a > b) {
-                var c_1 = a;
-                a = b;
-                b = c_1;
-            }
-            var k = a + "_" + b;
-            if (k in lines) {
-                lines[k] = null;
-            }
-            else {
-                lines[k] = [a, b];
-            }
-        };
-        for (var i = 0, l = triangles.length; i < l; i += 3) {
-            addLine(triangles[i + 0], triangles[i + 1]);
-            addLine(triangles[i + 1], triangles[i + 2]);
-            addLine(triangles[i + 2], triangles[i + 0]);
-        }
-        for (var k in lines) {
-            var line = lines[k];
-            if (line !== null) {
-                edges.push(line);
-            }
-        }
-        edges.sort(function (a, b) {
-            if (a[0] === b[0]) {
-                return a[1] < b[1] ? -1 : 1;
-            }
-            return a[0] < b[0] ? -1 : 1;
-        });
-        var last = edges.splice(1, 1)[0];
-        edges.push(last);
-        var c = last[0];
-        last[0] = last[1];
-        last[1] = c;
-        var result = new Array();
-        for (var _i = 0, edges_1 = edges; _i < edges_1.length; _i++) {
-            var line = edges_1[_i];
-            result.push(line[0], line[1]);
-        }
-        return result;
     }
     function oldActionToNewAction(oldAction) {
         var newAction = new Action();
@@ -918,6 +909,7 @@
             frames.push(beginFrame);
         }
         var position = 0;
+        var frameIndex = 0;
         var insertFrame = null;
         var prevFrame = null;
         for (var i = 0, l = frames.length; i < l; ++i) {
@@ -935,6 +927,13 @@
             }
             position += eachFrame.duration;
             prevFrame = eachFrame;
+            frameIndex++;
+        }
+        if (insertFrame === null && prevFrame !== null) {
+            prevFrame.duration = framePosition;
+            insertFrame = new ActionFrame();
+            insertFrame.duration = position - framePosition;
+            frames.splice(frameIndex, 0, insertFrame);
         }
         if (insertFrame !== null) {
             if (frame instanceof AllFrame || frame instanceof BoneAllFrame) {
@@ -999,6 +998,7 @@
             this.compatibleVersion = "";
             this.armature = [];
             this.offset = []; // Binary.
+            this.tag = []; // Binary.
             this.textureAtlas = [];
             this.userData = null;
         }
@@ -1050,6 +1050,7 @@
             this.bone = [];
             this.slot = [];
             this.ik = [];
+            this.path = [];
             this.skin = [];
             this.animation = []; // Binary.
             this.defaultActions = [];
@@ -1176,6 +1177,7 @@
     }());
     var Bone = /** @class */ (function () {
         function Bone() {
+            this.type = BoneType[BoneType.Bone].toLowerCase();
             this.inheritTranslation = true;
             this.inheritRotation = true;
             this.inheritScale = true;
@@ -1189,6 +1191,18 @@
         }
         return Bone;
     }());
+    var Surface = /** @class */ (function (_super) {
+        __extends(Surface, _super);
+        function Surface() {
+            var _this = _super.call(this) || this;
+            _this.segmentX = 0;
+            _this.segmentY = 0;
+            _this.vertices = [];
+            _this.type = BoneType[BoneType.Surface].toLowerCase();
+            return _this;
+        }
+        return Surface;
+    }(Bone));
     var Slot = /** @class */ (function () {
         function Slot() {
             this.blendMode = BlendMode[BlendMode.Normal].toLowerCase();
@@ -1211,6 +1225,22 @@
             this.target = "";
         }
         return IKConstraint;
+    }());
+    var PathConstraint = /** @class */ (function () {
+        function PathConstraint() {
+            this.name = "";
+            this.target = "";
+            this.bones = [];
+            this.positionMode = "percent";
+            this.spacingMode = "length";
+            this.rotateMode = "tangent";
+            this.position = 0;
+            this.spacing = 0;
+            this.rotateOffset = 0;
+            this.rotateMix = 0;
+            this.translateMix = 0;
+        }
+        return PathConstraint;
     }());
     var Skin = /** @class */ (function () {
         function Skin() {
@@ -1238,7 +1268,7 @@
         SkinSlot.prototype.getDisplay = function (name) {
             for (var _i = 0, _a = this.display; _i < _a.length; _i++) {
                 var display = _a[_i];
-                if (display.name === name) {
+                if (display && display.name === name) {
                     return display;
                 }
             }
@@ -1252,6 +1282,8 @@
             this.name = "";
             this.transform = new Transform();
         }
+        Display.prototype.clearToBinary = function () {
+        };
         return Display;
     }());
     var BoundingBoxDisplay = /** @class */ (function (_super) {
@@ -1308,10 +1340,13 @@
             _this.weights = [];
             _this.slotPose = [];
             _this.bonePose = [];
+            _this.glueWeights = [];
+            _this.glueMeshes = [];
             _this.edges = []; // Nonessential.
             _this.userEdges = []; // Nonessential.
             _this._boneCount = 0;
             _this._weightCount = 0;
+            _this._userEdges = true; // TODO
             if (!isDefault) {
                 _this.type = DisplayType[DisplayType.Mesh].toLowerCase();
             }
@@ -1345,16 +1380,42 @@
         function SharedMeshDisplay(isDefault) {
             if (isDefault === void 0) { isDefault = false; }
             var _this = _super.call(this) || this;
-            _this.inheritFFD = true;
+            _this.inheritDeform = true;
             _this.path = "";
             _this.share = "";
-            _this.skin = "";
+            _this.skin = "default";
             if (!isDefault) {
                 _this.type = DisplayType[DisplayType.Mesh].toLowerCase();
             }
             return _this;
         }
         return SharedMeshDisplay;
+    }(Display));
+    var PathDisplay = /** @class */ (function (_super) {
+        __extends(PathDisplay, _super);
+        function PathDisplay(isDefault) {
+            if (isDefault === void 0) { isDefault = false; }
+            var _this = _super.call(this) || this;
+            _this.offset = -1; // Binary.
+            _this.closed = false;
+            _this.constantSpeed = false;
+            _this.vertexCount = 0;
+            _this.vertices = [];
+            _this.lengths = [];
+            _this.weights = [];
+            _this.bones = [];
+            if (!isDefault) {
+                _this.type = DisplayType[DisplayType.Path].toLowerCase();
+            }
+            return _this;
+        }
+        PathDisplay.prototype.clearToBinary = function () {
+            this.vertexCount = 0;
+            this.vertices.length = 0;
+            this.weights.length = 0;
+            this.bones.length = 0;
+        };
+        return PathDisplay;
     }(Display));
     var RectangleBoundingBoxDisplay = /** @class */ (function (_super) {
         __extends(RectangleBoundingBoxDisplay, _super);
@@ -1391,13 +1452,23 @@
         function PolygonBoundingBoxDisplay(isDefault) {
             if (isDefault === void 0) { isDefault = false; }
             var _this = _super.call(this) || this;
+            _this.offset = -1; // Binary.
+            _this.vertexCount = 0;
             _this.vertices = [];
+            _this.weights = [];
+            _this.bones = [];
             if (!isDefault) {
                 _this.type = DisplayType[DisplayType.BoundingBox].toLowerCase();
                 _this.subType = BoundingBoxType[BoundingBoxType.Polygon].toLowerCase();
             }
             return _this;
         }
+        PolygonBoundingBoxDisplay.prototype.clearToBinary = function () {
+            this.vertexCount = 0;
+            // this.vertices.length = 0;
+            this.weights.length = 0;
+            this.bones.length = 0;
+        };
         return PolygonBoundingBoxDisplay;
     }(BoundingBoxDisplay));
     var Animation = /** @class */ (function () {
@@ -1409,9 +1480,11 @@
             this.name = "default";
             this.frame = [];
             this.bone = [];
+            this.surface = [];
             this.slot = [];
             this.ffd = [];
             this.ik = [];
+            this.animation = [];
             this.zOrder = null;
         }
         Animation.prototype.getSlotTimeline = function (name) {
@@ -1445,6 +1518,7 @@
             this.zOrder = -1;
             this.offset = [];
             this.bone = {};
+            this.surface = {};
             this.slot = {};
             this.constraint = {};
         }
@@ -1635,6 +1709,15 @@
         };
         return BoneTimeline;
     }(Timeline));
+    var SurfaceTimeline = /** @class */ (function (_super) {
+        __extends(SurfaceTimeline, _super);
+        function SurfaceTimeline() {
+            var _this = _super !== null && _super.apply(this, arguments) || this;
+            _this.frame = [];
+            return _this;
+        }
+        return SurfaceTimeline;
+    }(Timeline));
     var SlotTimeline = /** @class */ (function (_super) {
         __extends(SlotTimeline, _super);
         function SlotTimeline() {
@@ -1745,78 +1828,18 @@
             }
             return index;
         };
-        SlotTimeline.prototype.insertFrameaaa = function (from, progress) {
-            if (progress === 0.0) {
-                return null;
-            }
-            if (progress >= 1.0) {
-                return null;
-            }
-            var frames;
-            var insert;
-            if (from instanceof SlotAllFrame) {
-                frames = this.frame;
-                insert = new SlotAllFrame();
-            }
-            else if (from instanceof SlotColorFrame) {
-                frames = this.colorFrame;
-                insert = new SlotColorFrame();
-            }
-            else {
-                return null;
-            }
-            var index = frames.indexOf(from) + 1;
-            if (index < 1 || index >= frames.length) {
-                return null;
-            }
-            var to = frames[index];
-            insert.duration = Math.floor(from.duration * progress);
-            from.duration -= insert.duration;
-            progress = from.getTweenProgress(progress);
-            if (from instanceof TweenFrame && insert instanceof TweenFrame) {
-                // TODO
-                insert.tweenEasing = from.tweenEasing;
-                //to.curve; 
-            }
-            frames.splice(index, 0, insert);
-            if (from instanceof SlotAllFrame && insert instanceof SlotAllFrame && to instanceof SlotAllFrame) {
-                insert.displayIndex = from.displayIndex;
-                insert.color.aM = from.color.aM + (to.color.aM - from.color.aM) * progress;
-                insert.color.rM = from.color.rM + (to.color.rM - from.color.rM) * progress;
-                insert.color.gM = from.color.gM + (to.color.gM - from.color.gM) * progress;
-                insert.color.bM = from.color.bM + (to.color.bM - from.color.bM) * progress;
-                insert.color.aO = from.color.aO + (to.color.aO - from.color.aO) * progress;
-                insert.color.rO = from.color.rO + (to.color.rO - from.color.rO) * progress;
-                insert.color.gO = from.color.gO + (to.color.gO - from.color.gO) * progress;
-                insert.color.bO = from.color.bO + (to.color.bO - from.color.bO) * progress;
-            }
-            else if (from instanceof SlotColorFrame && insert instanceof SlotColorFrame && to instanceof SlotColorFrame) {
-                insert.value.aM = from.value.aM + (to.value.aM - from.value.aM) * progress;
-                insert.value.rM = from.value.rM + (to.value.rM - from.value.rM) * progress;
-                insert.value.gM = from.value.gM + (to.value.gM - from.value.gM) * progress;
-                insert.value.bM = from.value.bM + (to.value.bM - from.value.bM) * progress;
-                insert.value.aO = from.value.aO + (to.value.aO - from.value.aO) * progress;
-                insert.value.rO = from.value.rO + (to.value.rO - from.value.rO) * progress;
-                insert.value.gO = from.value.gO + (to.value.gO - from.value.gO) * progress;
-                insert.value.bO = from.value.bO + (to.value.bO - from.value.bO) * progress;
-            }
-            else {
-                return null;
-            }
-            return insert;
-        };
         return SlotTimeline;
     }(Timeline));
-    var FFDTimeline = /** @class */ (function (_super) {
-        __extends(FFDTimeline, _super);
-        function FFDTimeline() {
+    var MeshDeformTimeline = /** @class */ (function (_super) {
+        __extends(MeshDeformTimeline, _super);
+        function MeshDeformTimeline() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.skin = "";
+            _this.skin = "default";
             _this.slot = "";
             _this.frame = [];
             return _this;
         }
-        return FFDTimeline;
+        return MeshDeformTimeline;
     }(Timeline));
     var IKConstraintTimeline = /** @class */ (function (_super) {
         __extends(IKConstraintTimeline, _super);
@@ -1826,6 +1849,15 @@
             return _this;
         }
         return IKConstraintTimeline;
+    }(Timeline));
+    var AnimationTimeline = /** @class */ (function (_super) {
+        __extends(AnimationTimeline, _super);
+        function AnimationTimeline() {
+            var _this = _super !== null && _super.apply(this, arguments) || this;
+            _this.frame = [];
+            return _this;
+        }
+        return AnimationTimeline;
     }(Timeline));
     var Frame = /** @class */ (function () {
         function Frame() {
@@ -1885,6 +1917,7 @@
             return _this;
         }
         ActionFrame.prototype.equal = function (value) {
+            // tslint:disable-next-line:no-unused-expression
             value;
             return !value;
         };
@@ -1988,6 +2021,27 @@
         };
         return BoneScaleFrame;
     }(TweenFrame));
+    var DeformFrame = /** @class */ (function (_super) {
+        __extends(DeformFrame, _super);
+        function DeformFrame() {
+            var _this = _super !== null && _super.apply(this, arguments) || this;
+            _this.offset = 0;
+            _this.vertices = [];
+            return _this;
+        }
+        DeformFrame.prototype.equal = function (value) {
+            if (this.offset === value.offset && this.vertices.length === value.vertices.length) {
+                for (var i = 0, l = this.vertices.length; i < l; ++i) {
+                    if (this.vertices[i] !== value.vertices[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return false;
+        };
+        return DeformFrame;
+    }(TweenFrame));
     var SlotAllFrame = /** @class */ (function (_super) {
         __extends(SlotAllFrame, _super);
         function SlotAllFrame() {
@@ -2028,27 +2082,6 @@
         };
         return SlotColorFrame;
     }(TweenFrame));
-    var FFDFrame = /** @class */ (function (_super) {
-        __extends(FFDFrame, _super);
-        function FFDFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.offset = 0;
-            _this.vertices = [];
-            return _this;
-        }
-        FFDFrame.prototype.equal = function (value) {
-            if (this.offset === value.offset && this.vertices.length === value.vertices.length) {
-                for (var i = 0, l = this.vertices.length; i < l; ++i) {
-                    if (this.vertices[i] !== value.vertices[i]) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-            return false;
-        };
-        return FFDFrame;
-    }(TweenFrame));
     var IKConstraintFrame = /** @class */ (function (_super) {
         __extends(IKConstraintFrame, _super);
         function IKConstraintFrame() {
@@ -2061,6 +2094,19 @@
             return this.bendPositive === value.bendPositive && this.weight === value.weight;
         };
         return IKConstraintFrame;
+    }(TweenFrame));
+    var AnimationFrame = /** @class */ (function (_super) {
+        __extends(AnimationFrame, _super);
+        function AnimationFrame() {
+            var _this = _super !== null && _super.apply(this, arguments) || this;
+            _this.value = -1;
+            _this.weight = 1.0;
+            return _this;
+        }
+        AnimationFrame.prototype.equal = function (value) {
+            return this.value === value.value && this.weight === value.weight;
+        };
+        return AnimationFrame;
     }(TweenFrame));
     var TextureAtlas = /** @class */ (function () {
         function TextureAtlas() {
@@ -2104,9 +2150,30 @@
             userData: UserData
         },
         Armature, {
-            bone: Bone,
+            bone: [
+                function (bone) {
+                    var type = bone.type;
+                    if (type !== undefined) {
+                        if (typeof type === "string") {
+                            type = getEnumFormString(BoneType, type, BoneType.Bone);
+                        }
+                    }
+                    else {
+                        type = BoneType.Bone;
+                    }
+                    switch (type) {
+                        case BoneType.Bone:
+                            return Bone;
+                        case BoneType.Surface:
+                            return Surface;
+                    }
+                    return null;
+                },
+                Function
+            ],
             slot: Slot,
             ik: IKConstraint,
+            path: PathConstraint,
             skin: Skin,
             animation: Animation,
             defaultActions: OldAction,
@@ -2148,6 +2215,8 @@
                             else {
                                 return MeshDisplay;
                             }
+                        case DisplayType.Path:
+                            return PathDisplay;
                         case DisplayType.BoundingBox:
                             {
                                 var subType = display.subType;
@@ -2182,9 +2251,11 @@
             frame: ActionFrame,
             zOrder: ZOrderTimeline,
             bone: BoneTimeline,
+            surface: SurfaceTimeline,
             slot: SlotTimeline,
-            ffd: FFDTimeline,
-            ik: IKConstraintTimeline
+            ffd: MeshDeformTimeline,
+            ik: IKConstraintTimeline,
+            animation: AnimationTimeline
         },
         ZOrderTimeline, {
             frame: ZOrderFrame
@@ -2195,16 +2266,22 @@
             rotateFrame: BoneRotateFrame,
             scaleFrame: BoneScaleFrame,
         },
+        SurfaceTimeline, {
+            frame: DeformFrame,
+        },
         SlotTimeline, {
             frame: SlotAllFrame,
             displayFrame: SlotDisplayFrame,
             colorFrame: SlotColorFrame,
         },
-        FFDTimeline, {
-            frame: FFDFrame
+        MeshDeformTimeline, {
+            frame: DeformFrame
         },
         IKConstraintTimeline, {
             frame: IKConstraintFrame
+        },
+        AnimationTimeline, {
+            frame: AnimationFrame
         },
         ActionFrame, {
             actions: Action,
@@ -2227,18 +2304,22 @@
         new ColorTransform(),
         new DragonBones(),
         new UserData(),
+        new OldAction(),
         new Action(),
         new Canvas(),
         new Armature(),
         new Bone(),
+        new Surface(),
         new Slot(),
         new IKConstraint(),
+        new PathConstraint(),
         new Skin(),
         new SkinSlot(),
         new ImageDisplay(true),
         new ArmatureDisplay(true),
         new MeshDisplay(true),
         new SharedMeshDisplay(true),
+        new PathDisplay(true),
         new RectangleBoundingBoxDisplay(true),
         new EllipseBoundingBoxDisplay(true),
         new PolygonBoundingBoxDisplay(true),
@@ -2246,25 +2327,30 @@
         new AnimationBinary(),
         new ZOrderTimeline(),
         new BoneTimeline(),
+        new SurfaceTimeline(),
         new SlotTimeline(),
-        new FFDTimeline(),
+        new MeshDeformTimeline(),
         new IKConstraintTimeline(),
+        new AnimationTimeline(),
         new ActionFrame(),
         new ZOrderFrame(),
         new BoneAllFrame(),
         new BoneTranslateFrame(),
         new BoneRotateFrame(),
         new BoneScaleFrame(),
+        new DeformFrame(),
         new SlotAllFrame(),
         new SlotDisplayFrame(),
         new SlotColorFrame(),
-        new FFDFrame(),
         new IKConstraintFrame(),
+        new AnimationFrame(),
         new TextureAtlas(),
         new Texture()
     ];
 
-    var normalColor = new ColorTransform();
+    /**
+     * Convert json string to DragonBones format.
+     */
     function toFormat (data, getTextureAtlases) {
         if ((typeof data === 'string' && !isDragonBonesString(data)) || !isDragonBonesObject(data)) {
             return null;
@@ -2280,35 +2366,19 @@
             }
             var result = new DragonBones();
             copyFromObject(result, json, copyConfig);
-            for (var _i = 0, _a = result.armature; _i < _a.length; _i++) {
-                var armature = _a[_i];
-                for (var _b = 0, _c = armature.animation; _b < _c.length; _b++) {
-                    var animation = _c[_b];
-                    if (animation instanceof AnimationBinary) {
-                        continue;
-                    }
-                    for (var _d = 0, _e = animation.slot; _d < _e.length; _d++) {
-                        var timeline = _e[_d];
-                        for (var _f = 0, _g = timeline.colorFrame; _f < _g.length; _f++) {
-                            var colorFrame = _g[_f];
-                            if (!colorFrame.color.equal(normalColor) && colorFrame.value.equal(normalColor)) {
-                                colorFrame.value.copyFrom(colorFrame.color);
-                            }
-                            colorFrame.color.identity();
-                        }
-                    }
-                }
-            }
             return result;
         }
         catch (error) {
-            return null;
         }
+        return null;
     }
     var textureAtlases;
     var helpMatrix = new Matrix();
     var helpTransform = new Transform();
     var helpPoint = new Point();
+    /**
+     * Convert v2 v3 to v4 v5.
+     */
     function V23ToV45(data) {
         var result = new DragonBones();
         result.frameRate = result.frameRate;
@@ -2387,6 +2457,7 @@
                 for (var _m = 0, _o = animationV23.frame; _m < _o.length; _m++) {
                     var frameV23 = _o[_m];
                     var frame = new ActionFrame();
+                    frame.duration = frameV23.duration;
                     frame.action = frameV23.action;
                     frame.event = frameV23.event;
                     frame.sound = frameV23.sound;
@@ -2774,6 +2845,7 @@
         return data;
     }
 
+    var normalColor = new ColorTransform();
     function toNew (data, forRuntime) {
         data.version = DATA_VERSION_5_5;
         data.compatibleVersion = DATA_VERSION_5_5;
@@ -2787,6 +2859,10 @@
                 armature.canvas.width = armature.aabb.width;
                 armature.canvas.height = armature.aabb.height;
             }
+            for (var _b = 0, _c = armature.skin; _b < _c.length; _b++) {
+                var skin = _c[_b];
+                skin.name = skin.name || "default";
+            }
             if (forRuntime) {
                 if (armature.defaultActions.length > 0) {
                     for (var i = 0, l = armature.defaultActions.length; i < l; ++i) {
@@ -2798,21 +2874,19 @@
                 }
             }
             if (forRuntime) {
-                for (var _b = 0, _c = armature.slot; _b < _c.length; _b++) {
-                    var slot = _c[_b];
+                for (var _d = 0, _e = armature.slot; _d < _e.length; _d++) {
+                    var slot = _e[_d];
                     if (slot.actions.length > 0) {
                         var defaultSkin = armature.getSkin("default");
                         if (defaultSkin) {
                             var skinSlot = defaultSkin.getSlot(slot.name);
                             if (skinSlot !== null && skinSlot instanceof SkinSlot) {
-                                for (var _d = 0, _e = slot.actions; _d < _e.length; _d++) {
-                                    var action = _e[_d];
+                                for (var _f = 0, _g = slot.actions; _f < _g.length; _f++) {
+                                    var action = _g[_f];
                                     if (action instanceof OldAction) {
-                                        for (var _f = 0, _g = skinSlot.display; _f < _g.length; _f++) {
-                                            var display = _g[_f];
-                                            if (display instanceof ArmatureDisplay) {
-                                                display.actions.push(oldActionToNewAction(action));
-                                            }
+                                        var display = skinSlot.display[slot.displayIndex];
+                                        if (display instanceof ArmatureDisplay) {
+                                            display.actions.push(oldActionToNewAction(action));
                                         }
                                     }
                                 }
@@ -2856,6 +2930,7 @@
                         frame.events.length = 0;
                     }
                 }
+                // Modify bone timelines.
                 for (var _p = 0, _q = animation.bone; _p < _q.length; _p++) {
                     var timeline = _q[_p];
                     var bone = armature.getBone(timeline.name);
@@ -2864,6 +2939,7 @@
                     }
                     var position = 0;
                     var slot = armature.getSlot(timeline.name);
+                    // Bone frame to transform frame.
                     for (var i = 0, l = timeline.frame.length; i < l; ++i) {
                         var frame = timeline.frame[i];
                         var translateFrame = new BoneTranslateFrame();
@@ -2901,6 +2977,7 @@
                     }
                     timeline.frame.length = 0;
                 }
+                // Modify slot timelines.
                 for (var _r = 0, _s = animation.slot; _r < _s.length; _r++) {
                     var timeline = _s[_r];
                     var slot = armature.getSlot(timeline.name);
@@ -2908,6 +2985,7 @@
                         continue;
                     }
                     var position = 0;
+                    // Slot frame to display frame and color frame.
                     for (var i = 0, l = timeline.frame.length; i < l; ++i) {
                         var frame = timeline.frame[i];
                         var displayFrame = new SlotDisplayFrame();
@@ -2933,957 +3011,31 @@
                         }
                         position += frame.duration;
                     }
+                    timeline.frame.length = 0;
+                    // Merge slot action to action timeline.
+                    if (forRuntime) {
+                        position = 0;
+                        for (var i = 0, l = timeline.displayFrame.length; i < l; ++i) {
+                            var frame = timeline.displayFrame[i];
+                            if (frame.actions.length > 0) {
+                                mergeActionToAnimation(animation, frame, position, null, slot, true);
+                                frame.actions.length = 0;
+                                position += frame.duration;
+                            }
+                        }
+                    }
+                    // Color to value.
+                    for (var _v = 0, _w = timeline.colorFrame; _v < _w.length; _v++) {
+                        var colorFrame = _w[_v];
+                        if (!colorFrame.color.equal(normalColor) && colorFrame.value.equal(normalColor)) {
+                            colorFrame.value.copyFrom(colorFrame.color);
+                        }
+                        colorFrame.color.identity();
+                    }
                 }
             }
         }
         return data;
-    }
-
-    var __extends$2 = (this && this.__extends) || (function () {
-        var extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return function (d, b) {
-            extendStatics(d, b);
-            function __() { this.constructor = d; }
-            d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-        };
-    })();
-    var Spine = /** @class */ (function () {
-        function Spine() {
-            this.skeleton = new Skeleton();
-            this.bones = [];
-            this.slots = [];
-            this.ik = [];
-            this.transform = [];
-            this.path = [];
-            this.skins = {};
-            this.animations = {};
-            this.events = {};
-        }
-        return Spine;
-    }());
-    var Skeleton = /** @class */ (function () {
-        function Skeleton() {
-            this.width = 0.00;
-            this.height = 0.00;
-            this.fps = 30; // Nonessential.
-            this.spine = "";
-            this.hash = ""; // Nonessential.
-            this.images = "./images/"; // Nonessential.
-            this.name = ""; // Keep DragonBones armature name.
-        }
-        return Skeleton;
-    }());
-    var Bone$2 = /** @class */ (function () {
-        function Bone() {
-            this.inheritRotation = true;
-            this.inheritScale = true;
-            this.length = 0;
-            this.color = 0x989898FF; // Nonessential.
-            this.x = 0.00;
-            this.y = 0.00;
-            this.rotation = 0.00;
-            this.shearX = 0.00;
-            this.shearY = 0.00;
-            this.scaleX = 1.00;
-            this.scaleY = 1.00;
-            this.name = "";
-            this.parent = "";
-            this.transform = "normal";
-        }
-        return Bone;
-    }());
-    var Slot$2 = /** @class */ (function () {
-        function Slot() {
-            this.name = "";
-            this.bone = "";
-            this.color = "FFFFFFFF";
-            this.dark = "FFFFFF";
-            this.blend = "normal";
-            this.attachment = "";
-        }
-        return Slot;
-    }());
-    var IKConstraint$1 = /** @class */ (function () {
-        function IKConstraint() {
-            this.bendPositive = true;
-            this.order = 0;
-            this.mix = 1.00;
-            this.name = "";
-            this.target = "";
-            this.bones = [];
-        }
-        return IKConstraint;
-    }());
-    var TransformConstraint = /** @class */ (function () {
-        function TransformConstraint() {
-            this.local = false;
-            this.relative = false;
-            this.order = 0;
-            this.x = 0.00;
-            this.y = 0.00;
-            this.rotation = 0.00;
-            this.shearX = 0.00;
-            this.shearY = 0.00;
-            this.scaleX = 0.00;
-            this.scaleY = 0.00;
-            this.translateMix = 1.00;
-            this.rotateMix = 1.00;
-            this.scaleMix = 1.00;
-            this.shearMix = 1.00;
-            this.name = "";
-            this.bone = "";
-            this.target = "";
-        }
-        return TransformConstraint;
-    }());
-    var PathConstraint = /** @class */ (function () {
-        function PathConstraint() {
-            this.positionMode = "percent";
-            this.spacingMode = "length";
-            this.rotateMode = "tangent";
-            this.order = 0;
-            this.rotation = 0.00;
-            this.position = 0.00;
-            this.spacing = 0.00;
-            this.translateMix = 1.00;
-            this.rotateMix = 1.00;
-            this.name = "";
-            this.target = "";
-            this.bones = [];
-        }
-        return PathConstraint;
-    }());
-    var Attachment = /** @class */ (function () {
-        function Attachment() {
-            this.color = "FFFFFFFF";
-            this.name = "";
-        }
-        return Attachment;
-    }());
-    var RegionAttachment = /** @class */ (function (_super) {
-        __extends$2(RegionAttachment, _super);
-        function RegionAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.width = 0;
-            _this.height = 0;
-            _this.x = 0.00;
-            _this.y = 0.00;
-            _this.rotation = 0.00;
-            _this.scaleX = 1.00;
-            _this.scaleY = 1.00;
-            _this.path = "";
-            if (!isDefault) {
-                // this.type = "region";
-            }
-            return _this;
-        }
-        return RegionAttachment;
-    }(Attachment));
-    var MeshAttachment = /** @class */ (function (_super) {
-        __extends$2(MeshAttachment, _super);
-        function MeshAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.width = 0; // Nonessential.
-            _this.height = 0; // Nonessential.
-            _this.hull = 0;
-            _this.path = "";
-            _this.triangles = [];
-            _this.uvs = [];
-            _this.edges = []; // Nonessential.
-            _this.vertices = [];
-            if (!isDefault) {
-                _this.type = "mesh";
-            }
-            return _this;
-        }
-        return MeshAttachment;
-    }(Attachment));
-    var LinkedMeshAttachment = /** @class */ (function (_super) {
-        __extends$2(LinkedMeshAttachment, _super);
-        function LinkedMeshAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.type = "linkedmesh";
-            _this.deform = true;
-            _this.width = 0; // Nonessential.
-            _this.height = 0; // Nonessential.
-            _this.path = "";
-            _this.skin = "";
-            _this.parent = "";
-            if (!isDefault) {
-                _this.type = "linkedmesh";
-            }
-            return _this;
-        }
-        return LinkedMeshAttachment;
-    }(Attachment));
-    var BoundingBoxAttachment = /** @class */ (function (_super) {
-        __extends$2(BoundingBoxAttachment, _super);
-        function BoundingBoxAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.type = "boundingbox";
-            _this.vertexCount = 0;
-            _this.color = "60F000FF";
-            _this.vertices = [];
-            if (!isDefault) {
-                _this.type = "boundingbox";
-            }
-            return _this;
-        }
-        return BoundingBoxAttachment;
-    }(Attachment));
-    var PathAttachment = /** @class */ (function (_super) {
-        __extends$2(PathAttachment, _super);
-        function PathAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.type = "path";
-            _this.color = "FF7F00FF";
-            _this.closed = false;
-            _this.constantSpeed = true;
-            _this.vertexCount = 0;
-            _this.lengths = [];
-            _this.vertices = [];
-            if (!isDefault) {
-                _this.type = "path";
-            }
-            return _this;
-        }
-        return PathAttachment;
-    }(Attachment));
-    var PointAttachment = /** @class */ (function (_super) {
-        __extends$2(PointAttachment, _super);
-        function PointAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.type = "point";
-            _this.x = 0.0;
-            _this.y = 0.0;
-            _this.color = "F1F100FF";
-            _this.rotation = 0.0;
-            if (!isDefault) {
-                _this.type = "point";
-            }
-            return _this;
-        }
-        return PointAttachment;
-    }(Attachment));
-    var ClippingAttachment = /** @class */ (function (_super) {
-        __extends$2(ClippingAttachment, _super);
-        function ClippingAttachment(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.type = "clipping";
-            _this.vertexCount = 0.0;
-            _this.end = "";
-            _this.color = "CE3A3AFF";
-            _this.vertices = [];
-            if (!isDefault) {
-                _this.type = "clipping";
-            }
-            return _this;
-        }
-        return ClippingAttachment;
-    }(Attachment));
-    var Event = /** @class */ (function () {
-        function Event() {
-            this.int = 0;
-            this.float = 0.0;
-            this.string = "";
-            this.name = ""; // Keep to alive.
-        }
-        return Event;
-    }());
-    var Animation$2 = /** @class */ (function () {
-        function Animation() {
-            this.bones = {};
-            this.slots = {};
-            this.ik = {};
-            this.transform = {};
-            this.deform = {};
-            this.ffd = {}; // Deprecated.
-            this.events = [];
-            this.drawOrder = [];
-        }
-        return Animation;
-    }());
-    var BoneTimelines = /** @class */ (function () {
-        function BoneTimelines() {
-            this.translate = [];
-            this.rotate = [];
-            this.scale = [];
-            this.shear = [];
-        }
-        return BoneTimelines;
-    }());
-    var SlotTimelines = /** @class */ (function () {
-        function SlotTimelines() {
-            this.attachment = [];
-            this.color = [];
-        }
-        return SlotTimelines;
-    }());
-    var Frame$2 = /** @class */ (function () {
-        function Frame() {
-            this.time = -1.0;
-        }
-        return Frame;
-    }());
-    var TweenFrame$2 = /** @class */ (function (_super) {
-        __extends$2(TweenFrame, _super);
-        function TweenFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.curve = "linear";
-            return _this;
-        }
-        return TweenFrame;
-    }(Frame$2));
-    var TranslateFrame = /** @class */ (function (_super) {
-        __extends$2(TranslateFrame, _super);
-        function TranslateFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.x = 0.0;
-            _this.y = 0.0;
-            return _this;
-        }
-        return TranslateFrame;
-    }(TweenFrame$2));
-    var RotateFrame = /** @class */ (function (_super) {
-        __extends$2(RotateFrame, _super);
-        function RotateFrame(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.angle = 0.0;
-            if (isDefault) {
-                _this.angle = NaN; // Spine import data bug.
-            }
-            return _this;
-        }
-        return RotateFrame;
-    }(TweenFrame$2));
-    var ShearFrame = /** @class */ (function (_super) {
-        __extends$2(ShearFrame, _super);
-        function ShearFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.x = 0.0;
-            _this.y = 0.0;
-            return _this;
-        }
-        return ShearFrame;
-    }(TweenFrame$2));
-    var ScaleFrame = /** @class */ (function (_super) {
-        __extends$2(ScaleFrame, _super);
-        function ScaleFrame(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.x = 1.0;
-            _this.y = 1.0;
-            if (isDefault) {
-                _this.x = NaN; // spine import data bug
-                _this.y = NaN; // spine import data bug
-            }
-            return _this;
-        }
-        return ScaleFrame;
-    }(TweenFrame$2));
-    var AttachmentFrame = /** @class */ (function (_super) {
-        __extends$2(AttachmentFrame, _super);
-        function AttachmentFrame(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.name = "";
-            if (isDefault) {
-                _this.name = null; // Spine import data bug.
-            }
-            return _this;
-        }
-        return AttachmentFrame;
-    }(Frame$2));
-    var ColorFrame = /** @class */ (function (_super) {
-        __extends$2(ColorFrame, _super);
-        function ColorFrame(isDefault) {
-            if (isDefault === void 0) { isDefault = false; }
-            var _this = _super.call(this) || this;
-            _this.color = "FFFFFFFF";
-            if (isDefault) {
-                _this.color = ""; // Spine import data bug.
-            }
-            return _this;
-        }
-        return ColorFrame;
-    }(TweenFrame$2));
-    var IKConstraintFrame$1 = /** @class */ (function (_super) {
-        __extends$2(IKConstraintFrame, _super);
-        function IKConstraintFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.bendPositive = true;
-            _this.mix = 1.0;
-            return _this;
-        }
-        return IKConstraintFrame;
-    }(TweenFrame$2));
-    var TransformConstraintFrame = /** @class */ (function (_super) {
-        __extends$2(TransformConstraintFrame, _super);
-        function TransformConstraintFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.rotateMix = 1.0;
-            _this.translateMix = 1.0;
-            _this.scaleMix = 1.0;
-            _this.shearMix = 1.0;
-            return _this;
-        }
-        return TransformConstraintFrame;
-    }(TweenFrame$2));
-    var DeformFrame = /** @class */ (function (_super) {
-        __extends$2(DeformFrame, _super);
-        function DeformFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.offset = 0;
-            _this.vertices = [];
-            return _this;
-        }
-        return DeformFrame;
-    }(TweenFrame$2));
-    var EventFrame = /** @class */ (function (_super) {
-        __extends$2(EventFrame, _super);
-        function EventFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.int = 0;
-            _this.float = 0.0;
-            _this.string = "";
-            _this.name = "";
-            return _this;
-        }
-        return EventFrame;
-    }(Frame$2));
-    var DrawOrderFrame = /** @class */ (function (_super) {
-        __extends$2(DrawOrderFrame, _super);
-        function DrawOrderFrame() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.offsets = [];
-            return _this;
-        }
-        return DrawOrderFrame;
-    }(Frame$2));
-    var compressConfig$1 = [
-        new Spine(),
-        new Skeleton(),
-        new Bone$2(),
-        new Slot$2(),
-        new IKConstraint$1(),
-        new TransformConstraint(),
-        new PathConstraint(),
-        new RegionAttachment(true),
-        new MeshAttachment(true),
-        new LinkedMeshAttachment(true),
-        new BoundingBoxAttachment(true),
-        new PathAttachment(true),
-        new PointAttachment(true),
-        new ClippingAttachment(true),
-        new Event(),
-        new Animation$2(),
-        new BoneTimelines(),
-        new SlotTimelines(),
-        new TranslateFrame(),
-        new RotateFrame(true),
-        new ShearFrame(),
-        new ScaleFrame(true),
-        new AttachmentFrame(true),
-        new ColorFrame(true),
-        new IKConstraintFrame$1(),
-        new TransformConstraintFrame(),
-        new DeformFrame(),
-        new EventFrame(),
-        new DrawOrderFrame(),
-    ];
-
-    function toSpine (data, version) {
-        var result = { spines: [], textureAtlas: "" };
-        for (var _i = 0, _a = data.armature; _i < _a.length; _i++) {
-            var armature = _a[_i];
-            var frameRate = armature.frameRate > 0 ? armature.frameRate : data.frameRate;
-            var spine = new Spine();
-            spine.skeleton.width = armature.aabb.width;
-            spine.skeleton.height = armature.aabb.height;
-            spine.skeleton.fps = frameRate;
-            spine.skeleton.spine = version;
-            spine.skeleton.hash = " ";
-            spine.skeleton.name = armature.name;
-            result.spines.push(spine);
-            for (var _b = 0, _c = armature.bone; _b < _c.length; _b++) {
-                var bone = _c[_b];
-                var spBone = new Bone$2();
-                spBone.inheritRotation = bone.inheritRotation;
-                spBone.inheritScale = bone.inheritScale;
-                spBone.length = bone.length;
-                spBone.x = bone.transform.x;
-                spBone.y = -bone.transform.y;
-                spBone.rotation = -bone.transform.skY;
-                spBone.shearX = 0.0;
-                spBone.shearY = -(bone.transform.skX - bone.transform.skY);
-                spBone.scaleX = bone.transform.scX;
-                spBone.scaleY = bone.transform.scY;
-                spBone.name = bone.name;
-                spBone.parent = bone.parent;
-                // spBone.transform; // TODO
-                spine.bones.push(spBone);
-            }
-            var defaultSkin = armature.skin.length > 0 ? armature.skin[0] : null;
-            for (var _d = 0, _e = armature.slot; _d < _e.length; _d++) {
-                var slot = _e[_d];
-                var spSlot = new Slot$2();
-                spSlot.name = slot.name;
-                spSlot.bone = slot.parent;
-                spSlot.color = (Math.round(slot.color.rM * 2.55).toString(16) +
-                    Math.round(slot.color.gM * 2.55).toString(16) +
-                    Math.round(slot.color.bM * 2.55).toString(16) +
-                    Math.round(slot.color.aM * 2.55).toString(16)).toUpperCase();
-                switch (getEnumFormString(BlendMode, slot.blendMode)) {
-                    case BlendMode.Normal:
-                        spSlot.blend = "normal";
-                        break;
-                    case BlendMode.Add:
-                        spSlot.blend = "additive";
-                        break;
-                    case BlendMode.Multiply:
-                        spSlot.blend = "multiply";
-                        break;
-                    case BlendMode.Screen:
-                        spSlot.blend = "screen";
-                        break;
-                }
-                if (slot.displayIndex >= 0) {
-                    if (defaultSkin !== null) {
-                        var skinSlot = defaultSkin.getSlot(slot.name);
-                        if (skinSlot !== null) {
-                            spSlot.attachment = skinSlot.display[slot.displayIndex].name; //
-                        }
-                    }
-                }
-                spine.slots.push(spSlot);
-            }
-            for (var _f = 0, _g = armature.ik; _f < _g.length; _f++) {
-                var ikConstraint = _g[_f];
-                var spIKConstraint = new IKConstraint$1();
-                spIKConstraint.bendPositive = !ikConstraint.bendPositive;
-                spIKConstraint.mix = ikConstraint.weight;
-                spIKConstraint.name = ikConstraint.name;
-                spIKConstraint.target = ikConstraint.target;
-                if (ikConstraint.chain > 0) {
-                    spIKConstraint.bones.push(armature.getBone(ikConstraint.bone).parent);
-                }
-                spIKConstraint.bones.push(ikConstraint.bone);
-                spine.ik.push(spIKConstraint);
-            }
-            for (var _h = 0, _j = armature.skin; _h < _j.length; _h++) {
-                var skin = _j[_h];
-                var skinName = skin.name;
-                var spSkins = {};
-                for (var _k = 0, _l = skin.slot; _k < _l.length; _k++) {
-                    var slot = _l[_k];
-                    var spSlots = {};
-                    for (var _m = 0, _o = slot.display; _m < _o.length; _m++) {
-                        var display = _o[_m];
-                        if (display instanceof ImageDisplay) {
-                            var spAttachment = new RegionAttachment();
-                            spAttachment.x = display.transform.x;
-                            spAttachment.y = -display.transform.y;
-                            spAttachment.rotation = -display.transform.skY;
-                            spAttachment.scaleX = display.transform.scX;
-                            spAttachment.scaleY = display.transform.scY;
-                            spAttachment.name = display.name;
-                            spAttachment.path = display.path;
-                            var texture = getTextureFormTextureAtlases(display.path || display.name, data.textureAtlas);
-                            if (texture) {
-                                spAttachment.width = texture.width;
-                                spAttachment.height = texture.height;
-                            }
-                            spSlots[spAttachment.name] = spAttachment;
-                        }
-                        else if (display instanceof MeshDisplay) {
-                            var spAttachment = new MeshAttachment();
-                            spAttachment.name = display.name;
-                            spAttachment.path = display.path;
-                            spAttachment.uvs = display.uvs;
-                            spAttachment.triangles = display.triangles;
-                            var texture = getTextureFormTextureAtlases(display.path || display.name, data.textureAtlas);
-                            if (texture) {
-                                spAttachment.width = texture.width;
-                                spAttachment.height = texture.height;
-                            }
-                            for (var _p = 0, _q = getEdgeFormTriangles(display.triangles); _p < _q.length; _p++) {
-                                var index_1 = _q[_p];
-                                spAttachment.edges.push(index_1 * 2);
-                            }
-                            spAttachment.hull = spAttachment.edges.length / 2;
-                            if (display.userEdges.length > 0) {
-                                for (var _r = 0, _s = display.userEdges; _r < _s.length; _r++) {
-                                    var index_2 = _s[_r];
-                                    spAttachment.edges.push(index_2 * 2);
-                                }
-                            }
-                            if (display.weights.length > 0) {
-                                helpMatrixA.copyFromArray(display.slotPose);
-                                for (var i = 0, iW = 0, l = display.vertices.length; i < l; i += 2) {
-                                    var x = display.vertices[i];
-                                    var y = display.vertices[i + 1];
-                                    helpMatrixA.transformPoint(x, y, helpPoint$1);
-                                    x = helpPoint$1.x;
-                                    y = helpPoint$1.y;
-                                    var boneCount = display.weights[iW++];
-                                    spAttachment.vertices.push(boneCount);
-                                    for (var j = 0; j < boneCount; ++j) {
-                                        var boneIndex = display.weights[iW++];
-                                        var boneWeight = display.weights[iW++];
-                                        helpMatrixB.copyFromArray(display.bonePose, display.getBonePoseOffset(boneIndex) + 1);
-                                        helpMatrixB.invert();
-                                        helpMatrixB.transformPoint(x, y, helpPoint$1);
-                                        spAttachment.vertices.push(boneIndex, Number(helpPoint$1.x.toFixed(2)), -Number((helpPoint$1.y).toFixed(2)), boneWeight);
-                                    }
-                                }
-                            }
-                            else {
-                                display.transform.toMatrix(helpMatrixA);
-                                for (var i = 0, l = display.vertices.length; i < l; i += 2) {
-                                    helpMatrixA.transformPoint(display.vertices[i], display.vertices[i + 1], helpPoint$1);
-                                    spAttachment.vertices.push(Number(helpPoint$1.x.toFixed(2)), -Number((helpPoint$1.y).toFixed(2)));
-                                }
-                            }
-                            spSlots[spAttachment.name] = spAttachment;
-                        }
-                        else if (display instanceof SharedMeshDisplay) {
-                            var spAttachment = new LinkedMeshAttachment();
-                            spAttachment.deform = display.inheritFFD;
-                            spAttachment.name = display.name;
-                            spAttachment.parent = display.share;
-                            spAttachment.skin = skinName;
-                            spSlots[spAttachment.name] = spAttachment;
-                        }
-                        else if (display instanceof PolygonBoundingBoxDisplay) {
-                            var spAttachment = new BoundingBoxAttachment();
-                            spAttachment.vertexCount = display.vertices.length / 2;
-                            spAttachment.name = display.name;
-                            spAttachment.vertices = display.vertices;
-                            spSlots[spAttachment.name] = spAttachment;
-                        }
-                    }
-                    spSkins[slot.name] = spSlots;
-                }
-                spine.skins[skinName] = spSkins;
-            }
-            for (var _t = 0, _u = armature.animation; _t < _u.length; _t++) {
-                var animation = _u[_t];
-                if (animation instanceof AnimationBinary) {
-                    continue;
-                }
-                var iF = 0;
-                var position = 0.0;
-                var spAnimation = new Animation$2();
-                if (animation.frame.length > 0) {
-                    var position_1 = 0.0;
-                    for (var _v = 0, _w = animation.frame; _v < _w.length; _v++) {
-                        var frame = _w[_v];
-                        for (var _x = 0, _y = frame.actions; _x < _y.length; _x++) {
-                            var action = _y[_x];
-                            var eventName = action.name;
-                            switch (action.type) {
-                                case ActionType.Frame:
-                                    eventName = action.name;
-                                    break;
-                                case ActionType.Sound:
-                                    eventName = "soundEvent";
-                                    break;
-                                case ActionType.Play:
-                                    eventName = "playEvent";
-                                    break;
-                            }
-                            var spFrame = new EventFrame();
-                            spFrame.time = position_1;
-                            spFrame.name = eventName;
-                            spAnimation.events.push(spFrame);
-                            var event_1 = spine.events[eventName];
-                            if (!event_1) {
-                                event_1 = new Event();
-                                event_1.name = eventName;
-                                spine.events[eventName] = event_1;
-                                switch (action.type) {
-                                    case ActionType.Frame:
-                                        event_1.string = action.bone;
-                                        break;
-                                    case ActionType.Sound:
-                                        event_1.string = action.name;
-                                        break;
-                                    case ActionType.Play:
-                                        event_1.string = action.name;
-                                        break;
-                                }
-                                if (action.ints.length > 0) {
-                                    event_1.int = action.ints[0];
-                                }
-                                if (action.floats.length > 0) {
-                                    event_1.float = action.floats[0];
-                                }
-                                if (action.strings.length > 0) {
-                                    event_1.string = action.strings[0];
-                                }
-                            }
-                            else {
-                                switch (action.type) {
-                                    case ActionType.Frame:
-                                        spFrame.string = action.bone;
-                                        break;
-                                    case ActionType.Sound:
-                                        spFrame.string = action.name;
-                                        break;
-                                    case ActionType.Play:
-                                        spFrame.string = action.name;
-                                        break;
-                                }
-                                if (action.ints.length > 0) {
-                                    spFrame.int = action.ints[0];
-                                }
-                                if (action.floats.length > 0) {
-                                    spFrame.float = action.floats[0];
-                                }
-                                if (action.strings.length > 0) {
-                                    spFrame.string = action.strings[0];
-                                }
-                            }
-                        }
-                        position_1 += frame.duration / frameRate;
-                        position_1 = Number(position_1.toFixed(4));
-                    }
-                }
-                if (animation.zOrder) {
-                    var position_2 = 0.0;
-                    for (var _z = 0, _0 = animation.zOrder.frame; _z < _0.length; _z++) {
-                        var frame = _0[_z];
-                        var spFrame = new DrawOrderFrame();
-                        spFrame.time = position_2;
-                        for (var i = 0, l = frame.zOrder.length; i < l; i += 2) {
-                            spFrame.offsets.push({
-                                slot: armature.slot[frame.zOrder[i]].name,
-                                offset: frame.zOrder[i + 1]
-                            });
-                        }
-                        spAnimation.drawOrder.push(spFrame);
-                        position_2 += frame.duration / frameRate;
-                        position_2 = Number(position_2.toFixed(4));
-                    }
-                }
-                for (var _1 = 0, _2 = animation.bone; _1 < _2.length; _1++) {
-                    var timeline = _2[_1];
-                    var spTimelines = new BoneTimelines();
-                    spAnimation.bones[timeline.name] = spTimelines;
-                    iF = 0;
-                    position = 0.0;
-                    for (var _3 = 0, _4 = timeline.translateFrame; _3 < _4.length; _3++) {
-                        var frame = _4[_3];
-                        var spFrame = new TranslateFrame();
-                        spFrame.time = position;
-                        spFrame.x = frame.x;
-                        spFrame.y = -frame.y;
-                        setCurveFormDB(spFrame, frame, iF++ === timeline.translateFrame.length - 1);
-                        spTimelines.translate.push(spFrame);
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                    iF = 0;
-                    position = 0.0;
-                    for (var _5 = 0, _6 = timeline.rotateFrame; _5 < _6.length; _5++) {
-                        var frame = _6[_5];
-                        var spRotateFrame = new RotateFrame();
-                        spRotateFrame.time = position;
-                        spRotateFrame.angle = -frame.rotate;
-                        setCurveFormDB(spRotateFrame, frame, iF === timeline.rotateFrame.length - 1);
-                        spTimelines.rotate.push(spRotateFrame);
-                        var spShearFrame = new ShearFrame();
-                        spShearFrame.time = position;
-                        spShearFrame.x = 0.0;
-                        spShearFrame.y = -frame.skew;
-                        setCurveFormDB(spShearFrame, frame, iF === timeline.rotateFrame.length - 1);
-                        spTimelines.shear.push(spShearFrame);
-                        iF++;
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                    iF = 0;
-                    position = 0.0;
-                    for (var _7 = 0, _8 = timeline.scaleFrame; _7 < _8.length; _7++) {
-                        var frame = _8[_7];
-                        var spFrame = new ScaleFrame();
-                        spFrame.time = position;
-                        spFrame.x = frame.x;
-                        spFrame.y = frame.y;
-                        setCurveFormDB(spFrame, frame, iF++ === timeline.scaleFrame.length - 1);
-                        spTimelines.scale.push(spFrame);
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                }
-                for (var _9 = 0, _10 = animation.slot; _9 < _10.length; _9++) {
-                    var timeline = _10[_9];
-                    var skinSlot = defaultSkin === null ? null : defaultSkin.getSlot(timeline.name);
-                    var spTimelines = new SlotTimelines();
-                    spAnimation.slots[timeline.name] = spTimelines;
-                    position = 0.0;
-                    for (var _11 = 0, _12 = timeline.displayFrame; _11 < _12.length; _11++) {
-                        var frame = _12[_11];
-                        var spFrame = new AttachmentFrame();
-                        spFrame.time = position;
-                        spTimelines.attachment.push(spFrame);
-                        if (frame.value < 0 || skinSlot === null) {
-                            spFrame.name = "";
-                        }
-                        else {
-                            spFrame.name = skinSlot.display[frame.value].name;
-                        }
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                    iF = 0;
-                    position = 0.0;
-                    for (var _13 = 0, _14 = timeline.colorFrame; _13 < _14.length; _13++) {
-                        var frame = _14[_13];
-                        var spFrame = new ColorFrame();
-                        spFrame.time = position;
-                        setCurveFormDB(spFrame, frame, iF++ === timeline.colorFrame.length - 1);
-                        spTimelines.color.push(spFrame);
-                        spFrame.color = (Math.round(frame.value.rM * 2.55).toString(16) +
-                            Math.round(frame.value.gM * 2.55).toString(16) +
-                            Math.round(frame.value.bM * 2.55).toString(16) +
-                            Math.round(frame.value.aM * 2.55).toString(16)).toUpperCase();
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                }
-                for (var _15 = 0, _16 = animation.ffd; _15 < _16.length; _15++) {
-                    var timeline = _16[_15];
-                    var deformFrames = new Array();
-                    var skins = spAnimation.deform[timeline.skin] = spAnimation.deform[timeline.skin] || {};
-                    var slots = skins[timeline.slot] = skins[timeline.slot] || {};
-                    var meshDisplay = armature.getMesh(timeline.skin, timeline.slot, timeline.name);
-                    if (!meshDisplay) {
-                        continue;
-                    }
-                    slots[timeline.name] = deformFrames;
-                    meshDisplay.transform.toMatrix(helpMatrixA);
-                    iF = 0;
-                    position = 0.0;
-                    for (var _17 = 0, _18 = timeline.frame; _17 < _18.length; _17++) {
-                        var frame = _18[_17];
-                        var spFrame = new DeformFrame();
-                        deformFrames.push(spFrame);
-                        spFrame.time = position;
-                        setCurveFormDB(spFrame, frame, iF++ === timeline.frame.length - 1);
-                        for (var j = 0; j < frame.offset; ++j) {
-                            spFrame.vertices.push(0.0);
-                        }
-                        for (var _19 = 0, _20 = frame.vertices; _19 < _20.length; _19++) {
-                            var value = _20[_19];
-                            spFrame.vertices.push(value);
-                        }
-                        while (spFrame.vertices.length < meshDisplay.vertices.length) {
-                            spFrame.vertices.push(0.0);
-                        }
-                        if (meshDisplay.weights.length > 0) {
-                            //TODO
-                        }
-                        else {
-                            for (var j = 0, lJ = spFrame.vertices.length; j < lJ; j += 2) {
-                                var x = meshDisplay.vertices[j];
-                                var y = meshDisplay.vertices[j + 1];
-                                helpMatrixA.transformPoint(x, y, helpPoint$1);
-                                var xP = helpPoint$1.x;
-                                var yP = helpPoint$1.y;
-                                helpMatrixA.transformPoint(x + spFrame.vertices[j], y + spFrame.vertices[j + 1], helpPoint$1);
-                                spFrame.vertices[j] = Number((helpPoint$1.x - xP).toFixed(2));
-                                spFrame.vertices[j + 1] = -Number((helpPoint$1.y - yP).toFixed(2));
-                            }
-                        }
-                        var begin = 0;
-                        while (spFrame.vertices[begin] === 0.0) {
-                            begin++;
-                            if (begin === spFrame.vertices.length - 1) {
-                                break;
-                            }
-                        }
-                        var end = spFrame.vertices.length - 1;
-                        while (end > begin && spFrame.vertices[end] === 0.0) {
-                            end--;
-                        }
-                        var index_3 = 0;
-                        for (var i = begin; i < end + 1; ++i) {
-                            spFrame.vertices[index_3++] = spFrame.vertices[i];
-                        }
-                        spFrame.offset = begin;
-                        spFrame.vertices.length = end - begin + 1;
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                }
-                for (var _21 = 0, _22 = animation.ik; _21 < _22.length; _21++) {
-                    var timeline = _22[_21];
-                    iF = 0;
-                    position = 0.0;
-                    for (var _23 = 0, _24 = timeline.frame; _23 < _24.length; _23++) {
-                        var frame = _24[_23];
-                        var spFrame = new IKConstraintFrame$1();
-                        spFrame.time = position;
-                        setCurveFormDB(spFrame, frame, iF++ === timeline.frame.length - 1);
-                        spFrame.bendPositive = !frame.bendPositive;
-                        spFrame.mix = frame.weight;
-                        position += frame.duration / frameRate;
-                        position = Number(position.toFixed(4));
-                    }
-                }
-                spine.animations[animation.name] = spAnimation;
-            }
-        }
-        var index = data.textureAtlas.length > 1 ? 0 : -1;
-        for (var _25 = 0, _26 = data.textureAtlas; _25 < _26.length; _25++) {
-            var textureAtlas = _26[_25];
-            result.textureAtlas += "\n";
-            result.textureAtlas += data.name + "_spine" + (data.textureAtlas.length > 1 ? "_" + index : "") + ".png\n";
-            result.textureAtlas += "size: " + textureAtlas.width + "," + textureAtlas.height + "\n";
-            result.textureAtlas += "format: RGBA8888\n";
-            result.textureAtlas += "filter: Linear,Linear\n";
-            result.textureAtlas += "repeat: none\n";
-            for (var _27 = 0, _28 = textureAtlas.SubTexture; _27 < _28.length; _27++) {
-                var texture = _28[_27];
-                result.textureAtlas += texture.name + "\n";
-                result.textureAtlas += "  rotate: " + texture.rotated + "\n"; // TODO
-                result.textureAtlas += "  xy: " + texture.x + ", " + texture.y + "\n";
-                result.textureAtlas += "  size: " + texture.width + ", " + texture.height + "\n";
-                if (texture.frameX || texture.frameY || texture.frameWidth || texture.frameHeight) {
-                    result.textureAtlas += "  orig: " + (texture.frameWidth || texture.width) + ", " + (texture.frameHeight || texture.height) + "\n";
-                    result.textureAtlas += "  offset: " + texture.frameX + ", " + texture.frameY + "\n";
-                }
-                result.textureAtlas += "  index: " + index + "\n";
-            }
-            index++;
-        }
-        return result;
-    }
-    function setCurveFormDB(spFrame, dbFrame, isLastFrame) {
-        if (isLastFrame) {
-            return;
-        }
-        if (dbFrame.curve.length > 0) {
-            spFrame.curve = [];
-            spFrame.curve.push(dbFrame.curve[0] || 0, dbFrame.curve[1] || 0, dbFrame.curve[dbFrame.curve.length - 2] || 0, dbFrame.curve[dbFrame.curve.length - 1] || 1);
-        }
-        else if (isNaN(dbFrame.tweenEasing)) {
-            spFrame.curve = "stepped";
-        }
-        else {
-            spFrame.curve = "linear";
-        }
     }
 
     function format (data, textureAtlases) {
@@ -3902,6 +3054,7 @@
                 if (armature.bone.length === 0) {
                     armature.slot.length = 0;
                     armature.ik.length = 0;
+                    armature.path.length = 0;
                     armature.skin.length = 0;
                     armature.animation.length = 0;
                     armature.defaultActions.length = 0;
@@ -3917,15 +3070,25 @@
                     if (bone.parent && !armature.getBone(bone.parent)) {
                         bone.parent = "";
                     }
-                    bone.transform.skX = normalizeDegree(bone.transform.skX);
-                    bone.transform.skY = normalizeDegree(bone.transform.skY);
-                    if (bone.transform.scX === 0.0) {
-                        bone.transform.scX = 0.0001;
+                    switch (bone.type) {
+                        case BoneType.Bone:
+                            bone.transform.skX = normalizeDegree(bone.transform.skX);
+                            bone.transform.skY = normalizeDegree(bone.transform.skY);
+                            if (bone.transform.scX === 0.0) {
+                                bone.transform.scX = 0.0001;
+                            }
+                            if (bone.transform.scY === 0.0) {
+                                bone.transform.scY = 0.0001;
+                            }
+                            bone.transform.toFixed();
+                            break;
+                        case BoneType.Surface:
+                            var vertices = bone.vertices;
+                            for (var i = 0, l = vertices.length; i < l; ++i) {
+                                vertices[i] = Number(vertices[i].toFixed(2));
+                            }
+                            break;
                     }
-                    if (bone.transform.scY === 0.0) {
-                        bone.transform.scY = 0.0001;
-                    }
-                    bone.transform.toFixed();
                 }
                 for (var _d = 0, _e = armature.slot; _d < _e.length; _d++) {
                     var slot = _e[_d];
@@ -3942,22 +3105,34 @@
                     // TODO check recurrence
                     ikConstraint.weight = Number(ikConstraint.weight.toFixed(2));
                 }
+                for (var _h = 0, _j = armature.path; _h < _j.length; _h++) {
+                    var pathConstraint = _j[_h];
+                    if (!pathConstraint.target || !pathConstraint.bones) {
+                        // TODO
+                    }
+                    // TODO check recurrence
+                    pathConstraint.position = Number(pathConstraint.position.toFixed(2));
+                    pathConstraint.spacing = Number(pathConstraint.spacing.toFixed(2));
+                    pathConstraint.rotateOffset = Number(pathConstraint.rotateOffset.toFixed(2));
+                    pathConstraint.rotateMix = Number(pathConstraint.rotateMix.toFixed(2));
+                    pathConstraint.translateMix = Number(pathConstraint.translateMix.toFixed(2));
+                }
                 armature.sortBones();
-                for (var _h = 0, _j = armature.skin; _h < _j.length; _h++) {
-                    var skin = _j[_h];
-                    skin.name = skin.name || "default";
-                    for (var _k = 0, _l = skin.slot; _k < _l.length; _k++) {
-                        var skinSlot = _l[_k];
+                var meshMatrices = {};
+                for (var _k = 0, _l = armature.skin; _k < _l.length; _k++) {
+                    var skin = _l[_k];
+                    for (var _m = 0, _o = skin.slot; _m < _o.length; _m++) {
+                        var skinSlot = _o[_m];
                         if (!armature.getSlot(skinSlot.name)) {
                             skinSlot.display.length = 0;
                             continue;
                         }
                         skinSlot.actions.length = 0; // Fix data bug.
-                        for (var _m = 0, _o = skinSlot.display; _m < _o.length; _m++) {
-                            var display = _o[_m];
-                            display.transform.skX = normalizeDegree(display.transform.skX);
-                            display.transform.skY = normalizeDegree(display.transform.skY);
-                            display.transform.toFixed();
+                        for (var _p = 0, _q = skinSlot.display; _p < _q.length; _p++) {
+                            var display = _q[_p];
+                            if (!display) {
+                                continue;
+                            }
                             if (display instanceof ImageDisplay ||
                                 display instanceof MeshDisplay ||
                                 display instanceof SharedMeshDisplay ||
@@ -3967,17 +3142,50 @@
                                 }
                             }
                             if (display instanceof MeshDisplay) {
+                                var matrix = new Matrix();
+                                var meshName = skin.name + "_" + skinSlot.name + "_" + display.name;
+                                meshMatrices[meshName] = matrix;
+                                if (display.weights.length > 0) {
+                                    for (var i = 0, l = display.uvs.length; i < l; ++i) {
+                                        display.uvs[i] = Number(display.uvs[i].toFixed(6));
+                                    }
+                                    for (var i = 0, l = display.weights.length; i < l; ++i) {
+                                        display.weights[i] = Number(display.weights[i].toFixed(6));
+                                    }
+                                    for (var i = 0, l = display.bonePose.length; i < l; ++i) {
+                                        display.bonePose[i] = Number(display.bonePose[i].toFixed(6));
+                                    }
+                                    matrix.copyFromArray(display.slotPose, 0);
+                                    display.transform.identity();
+                                    display.slotPose[0] = 1.0;
+                                    display.slotPose[1] = 0.0;
+                                    display.slotPose[2] = 0.0;
+                                    display.slotPose[3] = 1.0;
+                                    display.slotPose[4] = 0.0;
+                                    display.slotPose[5] = 0.0;
+                                }
+                                else {
+                                    display.transform.toMatrix(matrix);
+                                    display.transform.identity();
+                                }
+                                for (var i = 0, l = display.vertices.length; i < l; i += 2) {
+                                    matrix.transformPoint(display.vertices[i], display.vertices[i + 1], helpPointA);
+                                    display.vertices[i] = Number(helpPointA.x.toFixed(2));
+                                    display.vertices[i + 1] = Number(helpPointA.y.toFixed(2));
+                                }
+                            }
+                            if (display instanceof PathDisplay) {
+                                //lengths
+                                for (var i = 0, l = display.lengths.length; i < l; ++i) {
+                                    display.lengths[i] = Number(display.lengths[i].toFixed(6));
+                                }
+                                //vertices
                                 for (var i = 0, l = display.vertices.length; i < l; ++i) {
-                                    display.vertices[i] = Number(display.vertices[i].toFixed(2));
+                                    display.vertices[i] = Number(display.vertices[i].toFixed(6));
                                 }
-                                for (var i = 0, l = display.uvs.length; i < l; ++i) {
-                                    display.uvs[i] = Number(display.uvs[i].toFixed(6));
-                                }
+                                //weights
                                 for (var i = 0, l = display.weights.length; i < l; ++i) {
                                     display.weights[i] = Number(display.weights[i].toFixed(6));
-                                }
-                                for (var i = 0, l = display.bonePose.length; i < l; ++i) {
-                                    display.bonePose[i] = Number(display.bonePose[i].toFixed(6));
                                 }
                             }
                             if (display instanceof RectangleBoundingBoxDisplay ||
@@ -3986,77 +3194,113 @@
                                 display.height = Number(display.height.toFixed(2));
                             }
                             if (display instanceof PolygonBoundingBoxDisplay) {
-                                for (var i = 0, l = display.vertices.length; i < l; ++i) {
-                                    display.vertices[i] = Number(display.vertices[i].toFixed(2));
+                                display.transform.toMatrix(helpMatrixA);
+                                display.transform.identity();
+                                for (var i = 0, l = display.vertices.length; i < l; i += 2) {
+                                    helpMatrixA.transformPoint(display.vertices[i], display.vertices[i + 1], helpPointA);
+                                    display.vertices[i] = Number(helpPointA.x.toFixed(2));
+                                    display.vertices[i + 1] = Number(helpPointA.y.toFixed(2));
                                 }
                             }
+                            display.transform.skX = normalizeDegree(display.transform.skX);
+                            display.transform.skY = normalizeDegree(display.transform.skY);
+                            display.transform.toFixed();
                         }
                     }
                 }
-                for (var _p = 0, _q = armature.animation; _p < _q.length; _p++) {
-                    var animation = _q[_p];
+                for (var _r = 0, _s = armature.animation; _r < _s.length; _r++) {
+                    var animation = _s[_r];
                     if (!(animation instanceof Animation)) {
                         continue;
                     }
-                    for (var _r = 0, _s = animation.bone; _r < _s.length; _r++) {
-                        var timeline = _s[_r];
-                        for (var _t = 0, _u = timeline.frame; _t < _u.length; _t++) {
-                            var frame = _u[_t];
+                    if (animation.zOrder) {
+                        cleanFrame(animation.zOrder.frame);
+                        if (animation.zOrder.frame.length === 0) {
+                            animation.zOrder = null;
+                        }
+                    }
+                    for (var _t = 0, _u = animation.bone; _t < _u.length; _t++) {
+                        var timeline = _u[_t];
+                        for (var _v = 0, _w = timeline.frame; _v < _w.length; _v++) {
+                            var frame = _w[_v];
                             frame.transform.skX = Number(normalizeDegree(frame.transform.skX).toFixed(2));
                             frame.transform.skY = Number(normalizeDegree(frame.transform.skY).toFixed(2));
                             frame.transform.toFixed();
                         }
-                        for (var _v = 0, _w = timeline.translateFrame; _v < _w.length; _v++) {
-                            var frame = _w[_v];
+                        for (var _x = 0, _y = timeline.translateFrame; _x < _y.length; _x++) {
+                            var frame = _y[_x];
                             frame.x = Number(frame.x.toFixed(2));
                             frame.y = Number(frame.y.toFixed(2));
                         }
-                        for (var _x = 0, _y = timeline.rotateFrame; _x < _y.length; _x++) {
-                            var frame = _y[_x];
+                        for (var _z = 0, _0 = timeline.rotateFrame; _z < _0.length; _z++) {
+                            var frame = _0[_z];
                             frame.rotate = Number(normalizeDegree(frame.rotate).toFixed(2));
                             frame.skew = Number(normalizeDegree(frame.skew).toFixed(2));
                         }
-                        for (var _z = 0, _0 = timeline.scaleFrame; _z < _0.length; _z++) {
-                            var frame = _0[_z];
+                        for (var _1 = 0, _2 = timeline.scaleFrame; _1 < _2.length; _1++) {
+                            var frame = _2[_1];
                             frame.x = Number(frame.x.toFixed(2));
                             frame.y = Number(frame.y.toFixed(2));
                         }
                     }
-                    for (var _1 = 0, _2 = animation.slot; _1 < _2.length; _1++) {
-                        var timeline = _2[_1];
-                        for (var _3 = 0, _4 = timeline.frame; _3 < _4.length; _3++) {
-                            var frame = _4[_3];
-                            frame.color.toFixed();
-                        }
-                        for (var _5 = 0, _6 = timeline.colorFrame; _5 < _6.length; _5++) {
+                    for (var _3 = 0, _4 = animation.surface; _3 < _4.length; _3++) {
+                        var timeline = _4[_3];
+                        for (var _5 = 0, _6 = timeline.frame; _5 < _6.length; _5++) {
                             var frame = _6[_5];
-                            frame.value.toFixed();
+                            frame.offset += formatDeform(frame.vertices);
                         }
                     }
-                    for (var _7 = 0, _8 = animation.ffd; _7 < _8.length; _7++) {
+                    for (var _7 = 0, _8 = animation.slot; _7 < _8.length; _7++) {
                         var timeline = _8[_7];
                         for (var _9 = 0, _10 = timeline.frame; _9 < _10.length; _9++) {
                             var frame = _10[_9];
-                            for (var i = 0, l = frame.vertices.length; i < l; ++i) {
-                                frame.vertices[i] = Number(frame.vertices[i].toFixed(2));
-                            }
-                            var begin = 0;
-                            while (frame.vertices[begin] === 0.0) {
-                                begin++;
-                                if (begin === frame.vertices.length - 1) {
-                                    break;
+                            frame.color.toFixed();
+                        }
+                        for (var _11 = 0, _12 = timeline.colorFrame; _11 < _12.length; _11++) {
+                            var frame = _12[_11];
+                            frame.value.toFixed();
+                        }
+                    }
+                    for (var _13 = 0, _14 = animation.ffd; _13 < _14.length; _13++) {
+                        var timeline = _14[_13];
+                        timeline.skin = timeline.skin || "default";
+                        var meshName = timeline.skin + "_" + timeline.slot + "_" + timeline.name;
+                        var mesh = armature.getMesh(timeline.skin, timeline.slot, timeline.name);
+                        var matrix = meshMatrices[meshName];
+                        for (var _15 = 0, _16 = timeline.frame; _15 < _16.length; _15++) {
+                            var frame = _16[_15];
+                            if (matrix) {
+                                var inSide = 0;
+                                var x = 0.0;
+                                var y = 0.0;
+                                for (var i = 0, l = mesh.vertices.length; i < l; i += 2) {
+                                    inSide = 0;
+                                    if (i < frame.offset || i - frame.offset >= frame.vertices.length) {
+                                        x = 0.0;
+                                    }
+                                    else {
+                                        inSide = 1;
+                                        x = frame.vertices[i - frame.offset];
+                                    }
+                                    if (i + 1 < frame.offset || i + 1 - frame.offset >= frame.vertices.length) {
+                                        y = 0.0;
+                                    }
+                                    else {
+                                        if (inSide === 0) {
+                                            inSide = -1;
+                                        }
+                                        y = frame.vertices[i + 1 - frame.offset];
+                                    }
+                                    if (inSide !== 0) {
+                                        matrix.transformPoint(x, y, helpPointA, true);
+                                        if (inSide === 1) {
+                                            frame.vertices[i - frame.offset] = helpPointA.x;
+                                        }
+                                        frame.vertices[i + 1 - frame.offset] = helpPointA.y;
+                                    }
                                 }
                             }
-                            var end = frame.vertices.length - 1;
-                            while (end > begin && frame.vertices[end] === 0.0) {
-                                end--;
-                            }
-                            var index = 0;
-                            for (var i = begin; i < end + 1; ++i) {
-                                frame.vertices[index++] = frame.vertices[i];
-                            }
-                            frame.offset += begin;
-                            frame.vertices.length = end - begin + 1;
+                            frame.offset += formatDeform(frame.vertices);
                         }
                     }
                     for (var i = 0, l = animation.bone.length; i < l; ++i) {
@@ -4104,13 +3348,29 @@
                         i--;
                         l--;
                     }
+                    for (var i = 0, l = animation.surface.length; i < l; ++i) {
+                        var timeline = animation.surface[i];
+                        var surface = armature.getBone(timeline.name);
+                        if (surface) {
+                            cleanFrame(timeline.frame);
+                            if (timeline.frame.length === 1) {
+                                var frame = timeline.frame[0];
+                                if (frame.vertices.length === 0) {
+                                    timeline.frame.length = 0;
+                                }
+                            }
+                            if (timeline.frame.length > 0) {
+                                continue;
+                            }
+                        }
+                        animation.surface.splice(i, 1);
+                        i--;
+                        l--;
+                    }
                     for (var i = 0, l = animation.slot.length; i < l; ++i) {
                         var timeline = animation.slot[i];
                         var slot = armature.getSlot(timeline.name);
                         if (slot) {
-                            if (animation.name === "dead" && slot.name === "backLight") {
-                                debugger;
-                            }
                             cleanFrame(timeline.frame);
                             cleanFrame(timeline.displayFrame);
                             cleanFrame(timeline.colorFrame);
@@ -4123,7 +3383,7 @@
                             }
                             if (timeline.displayFrame.length === 1) {
                                 var frame = timeline.displayFrame[0];
-                                if (frame.value === slot.displayIndex) {
+                                if (frame.actions.length === 0 && frame.value === slot.displayIndex) {
                                     timeline.displayFrame.length = 0;
                                 }
                             }
@@ -4144,7 +3404,7 @@
                     for (var i = 0, l = animation.ffd.length; i < l; ++i) {
                         var timeline = animation.ffd[i];
                         var slot = armature.getSlot(timeline.slot);
-                        var mesh = armature.getMesh(timeline.skin = timeline.skin || "default", timeline.slot, timeline.name);
+                        var mesh = armature.getMesh(timeline.skin, timeline.slot, timeline.name);
                         if (slot && mesh) {
                             cleanFrame(timeline.frame);
                             if (timeline.frame.length === 1) {
@@ -4161,25 +3421,41 @@
                         i--;
                         l--;
                     }
-                    if (animation.zOrder) {
-                        cleanFrame(animation.zOrder.frame);
-                        if (animation.zOrder.frame.length === 0) {
-                            animation.zOrder = null;
-                        }
-                    }
                 }
             }
-            for (var _11 = 0, _12 = data.textureAtlas; _11 < _12.length; _11++) {
-                var textureAtlas = _12[_11];
+            for (var _17 = 0, _18 = data.textureAtlas; _17 < _18.length; _17++) {
+                var textureAtlas = _18[_17];
                 formatTextureAtlas(textureAtlas);
             }
         }
         if (textureAtlases) {
-            for (var _13 = 0, textureAtlases_1 = textureAtlases; _13 < textureAtlases_1.length; _13++) {
-                var textureAtlas = textureAtlases_1[_13];
+            for (var _19 = 0, textureAtlases_1 = textureAtlases; _19 < textureAtlases_1.length; _19++) {
+                var textureAtlas = textureAtlases_1[_19];
                 formatTextureAtlas(textureAtlas);
             }
         }
+    }
+    function formatDeform(deform) {
+        for (var i = 0, l = deform.length; i < l; ++i) {
+            deform[i] = Number(deform[i].toFixed(2));
+        }
+        var begin = 0;
+        while (deform[begin] === 0.0) {
+            begin++;
+            if (begin === deform.length - 1) {
+                break;
+            }
+        }
+        var end = deform.length - 1;
+        while (end > begin && deform[end] === 0.0) {
+            end--;
+        }
+        var index = 0;
+        for (var i = begin; i < end + 1; ++i) {
+            deform[index++] = deform[i];
+        }
+        deform.length = end - begin + 1;
+        return begin;
     }
     function formatTextureAtlas(textureAtlas) {
         for (var _i = 0, _a = textureAtlas.SubTexture; _i < _a.length; _i++) {
@@ -4346,24 +3622,9 @@
                 break;
             }
             case "player":
+            case "spine":
             case "viewer": {
-                throw new Error("input.to:[player|viewer] not yet implemented");
-            }
-            case "spine": {
-                toNew(dragonBonesData, true);
-                format(dragonBonesData);
-                var result = toSpine(dragonBonesData, input.config);
-                for (var _i = 0, _a = result.spines; _i < _a.length; _i++) {
-                    var spine = _a[_i];
-                    if (input.compress !== false) {
-                        compress(spine, compressConfig$1);
-                    }
-                    toOutput.push(new Output(JSON.stringify(spine), result.spines.length > 1 ? dragonBonesData.name + "_" + spine.skeleton.name : dragonBonesData.name, ".json", "string"));
-                }
-                if (result.textureAtlas) {
-                    toOutput.push(new Output(result.textureAtlas, dragonBonesData.name, ".atlas", "string"));
-                }
-                break;
+                throw new Error("input.to:[player|spine|viewer] not yet implemented");
             }
             default:
                 throw new Error("Code.DataError");

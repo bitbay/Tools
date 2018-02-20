@@ -1,11 +1,9 @@
+import * as dbft from "./format/dragonBonesFormat";
 import toFormat from "./action/toFormat";
 import toV45 from "./action/toV45";
 import toNew from "./action/toNew";
-import toSpine from "./action/toSpine";
-import format from "./action/formatFormat";
 import { copyFromObject } from "./common/safeutils";
-import * as dbft from "./format/dragonBonesFormat";
-import * as spft from "./format/spineFormat";
+import format from "./action/formatFormat";
 
 type Input = {
     from: "spine" | "cocos";
@@ -174,41 +172,9 @@ export function db2(input: db2Input): Output[] {
         }
 
         case "player":
+        case "spine":
         case "viewer": {
-            throw new Error("input.to:[player|viewer] not yet implemented");
-        }
-
-        case "spine": {
-            toNew(dragonBonesData, true);
-            format(dragonBonesData);
-            const result = toSpine(dragonBonesData, input.config);
-
-            for (const spine of result.spines) {
-                if (input.compress !== false) {
-                    compress(spine, spft.compressConfig);
-                }
-
-                toOutput.push(
-                    new Output(
-                        JSON.stringify(spine),
-                        result.spines.length > 1 ? `${dragonBonesData.name}_${spine.skeleton.name}` : dragonBonesData.name,
-                        ".json",
-                        "string"
-                    )
-                );
-            }
-
-            if (result.textureAtlas) {
-                toOutput.push(
-                    new Output(
-                        result.textureAtlas,
-                        dragonBonesData.name,
-                        ".atlas",
-                        "string"
-                    )
-                );
-            }
-            break;
+            throw new Error("input.to:[player|spine|viewer] not yet implemented");
         }
 
         default:

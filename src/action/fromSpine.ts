@@ -9,12 +9,14 @@ type Input = {
     data: spft.Spine;
     textureAtlas: string;
 };
-
+/**
+ * Convert Spine format to DragonBones format.
+ */
 export default function (data: Input, forPro: boolean = false): dbft.DragonBones {
     let textureAtlasScale = -1.0;
     const result: dbft.DragonBones = new dbft.DragonBones();
 
-    {
+    { // Convert texture atlas.
         const lines = data.textureAtlas.split(/\r\n|\r|\n/);
         const tuple = new Array<string>(4);
         let textureAtlas: dbft.TextureAtlas | null = null;
@@ -71,8 +73,8 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                 texture.frameWidth = parseInt(tuple[0]);
                 texture.frameHeight = parseInt(tuple[1]);
                 readTuple(tuple, lines.shift());
-                texture.frameX = parseInt(tuple[0]);
-                texture.frameY = parseInt(tuple[1]);
+                texture.frameX = -parseInt(tuple[0]);
+                texture.frameY = -(texture.frameHeight - (texture.rotated ? texture.width : texture.height) - parseInt(tuple[1]));
                 readTuple(tuple, lines.shift());
                 textureAtlas.SubTexture.push(texture);
             }
@@ -99,7 +101,7 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
         bone.name = sfBone.name;
         bone.parent = sfBone.parent;
 
-        switch (sfBone.transform) { // TODO
+        switch (sfBone.transform) {
             case "onlyTranslation":
                 bone.inheritRotation = false;
                 bone.inheritScale = false;
@@ -138,6 +140,17 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
     armature.localToGlobal();
 
     const slotDisplays: Map<string[]> = {}; // Create attachments sort.
+    const addDisplayToSlot = (rawDisplays: string[], display: dbft.Display, displays: (dbft.Display | null)[]) => {
+        // tslint:disable-next-line:no-unused-expression
+        rawDisplays;
+
+        // const index = rawDisplays.indexOf(display.name); TODO
+        // while (displays.length < index) {
+        //     displays.push(null);
+        // }
+
+        displays.push(display);
+    };
 
     for (const skinName in data.data.skins) {
         const spSkin = data.data.skins[skinName];
@@ -158,26 +171,26 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
 
                 if (attachment instanceof spft.RegionAttachment) {
                     const display = new dbft.ImageDisplay();
-                    display.name = attachment.name || attachmentName;
-                    display.path = attachment.path;
+                    display.name = attachmentName;
+                    display.path = attachment.path || attachment.name;
                     display.transform.x = attachment.x;
                     display.transform.y = -attachment.y;
                     display.transform.skX = -attachment.rotation;
                     display.transform.skY = -attachment.rotation;
                     display.transform.scX = attachment.scaleX;
                     display.transform.scY = attachment.scaleY;
-                    slot.display.push(display);
+                    addDisplayToSlot(displays, display, slot.display);
 
                     if (textureAtlasScale < 0.0) {
-                        textureAtlasScale = modifyTextureAtlasScale(attachment.path || display.name, attachment, result.textureAtlas);
+                        textureAtlasScale = modifyTextureAtlasScale(display.path || display.name, attachment, result.textureAtlas);
                     }
                 }
                 else if (attachment instanceof spft.MeshAttachment) {
                     const display = new dbft.MeshDisplay();
-                    display.name = attachment.name || attachmentName;
+                    display.name = attachmentName;
                     display.width = attachment.width;
                     display.height = attachment.height;
-                    display.path = attachment.path || (attachment.name || attachmentName);
+                    display.path = attachment.path || attachment.name;
 
                     for (const v of attachment.uvs) {
                         display.uvs.push(v);
@@ -219,9 +232,9 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                                 if (bone && bone._global) {
                                     const boneIndex = armature.bone.indexOf(bone);
                                     bone._global.toMatrix(geom.helpMatrixA);
-                                    geom.helpMatrixA.transformPoint(xL, yL, geom.helpPoint);
-                                    xG += geom.helpPoint.x * weight;
-                                    yG += geom.helpPoint.y * weight;
+                                    geom.helpMatrixA.transformPoint(xL, yL, geom.helpPointA);
+                                    xG += geom.helpPointA.x * weight;
+                                    yG += geom.helpPointA.y * weight;
                                     display.weights.push(boneIndex, weight);
 
                                     if (bones.indexOf(boneIndex) < 0) {
@@ -237,35 +250,121 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                         display.slotPose.push(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
                     }
 
-                    display.edges = dbft.getEdgeFormTriangles(display.triangles);
+                    const edges = dbft.getEdgeFormTriangles(display.triangles);
+                    display.edges.length = edges.length;
+                    for (const value of edges) {
+                        display.edges.push(value);
+                    }
+
                     if (attachment.edges.length !== attachment.hull * 2) {
                         for (let i = attachment.hull * 2; i < attachment.edges.length; ++i) {
                             display.userEdges.push(attachment.edges[i] / 2);
                         }
                     }
 
-                    slot.display.push(display);
+                    addDisplayToSlot(displays, display, slot.display);
 
                     if (textureAtlasScale < 0.0) {
-                        textureAtlasScale = modifyTextureAtlasScale(attachment.path || display.name, attachment, result.textureAtlas);
+                        textureAtlasScale = modifyTextureAtlasScale(display.path || display.name, attachment, result.textureAtlas);
                     }
                 }
                 else if (attachment instanceof spft.LinkedMeshAttachment) {
                     const display = new dbft.SharedMeshDisplay();
-                    display.inheritFFD = attachment.deform;
-                    display.name = attachment.name || attachmentName;
+                    display.inheritDeform = attachment.deform;
+                    display.name = attachmentName;
                     display.share = attachment.parent;
                     display.skin = attachment.skin;
-                    display.path = attachment.path || (attachment.name || attachmentName);
-                    slot.display.push(display);
+                    display.path = attachment.path || attachment.name;
+                    addDisplayToSlot(displays, display, slot.display);
 
                     if (textureAtlasScale < 0.0) {
-                        textureAtlasScale = modifyTextureAtlasScale(attachment.path || display.name, attachment, result.textureAtlas);
+                        textureAtlasScale = modifyTextureAtlasScale(display.path || display.name, attachment, result.textureAtlas);
                     }
+                }
+                else if (attachment instanceof spft.PathAttachment) {
+                    const display = new dbft.PathDisplay();
+                    display.name = attachment.name || attachmentName;
+
+                    display.closed = attachment.closed;
+                    display.constantSpeed = attachment.constantSpeed;
+
+                    display.vertexCount = attachment.vertexCount;
+                    display.lengths.length = attachment.lengths.length;
+
+                    for (let i = 0, l = attachment.lengths.length; i < l; i++) {
+                        display.lengths[i] = attachment.lengths[i];
+                    }
+
+                    //
+                    // const bones = new Array<number>();
+                    // // weight
+                    // for (let iW = 0; iW < attachment.vertices.length;) {
+                    //     const boneCount = attachment.vertices[iW++];
+
+                    //     display.weights.push(boneCount);
+
+                    //     let xG: number = 0.0;
+                    //     let yG: number = 0.0;
+                    //     for (let j = 0; j < boneCount; j++) {
+                    //         const boneIndex = attachment.vertices[iW++];
+                    //         const xL = attachment.vertices[iW++];
+                    //         const yL = -attachment.vertices[iW++];
+                    //         const weight = attachment.vertices[iW++];
+                    //         const bone = armature.getBone(data.data.bones[boneIndex].name);
+                    //         if (bone && bone._global) {
+                    //             const boneIndex = armature.bone.indexOf(bone);
+                    //             bone._global.toMatrix(geom.helpMatrixA);
+                    //             geom.helpMatrixA.transformPoint(xL, yL, geom.helpPointA);
+                    //             xG += geom.helpPointA.x * weight;
+                    //             yG += geom.helpPointA.y * weight;
+                    //             display.weights.push(boneIndex);
+                    //             display.weights.push(weight);
+                    //             if (bones.indexOf(boneIndex) < 0) {
+                    //                 bones.push(boneIndex);
+                    //                 display.bonePose.push(boneIndex, geom.helpMatrixA.a, geom.helpMatrixA.b, geom.helpMatrixA.c, geom.helpMatrixA.d, geom.helpMatrixA.tx, geom.helpMatrixA.ty);
+                    //             }
+                    //         }
+                    //     }
+
+                    //     display.vertices.push(xG, yG);
+                    // }
+                    // display.slotPose.push(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+
+                    //没有权重数据，这么这些就是曲线顶点数据
+                    if (attachment.vertexCount * 2 === attachment.vertices.length) {
+                        display.vertices.length = attachment.vertices.length;
+                        for (let i = 0, l = attachment.vertices.length; i < l; i++) {
+                            display.vertices[i] = attachment.vertices[i];
+                        }
+                    }
+                    else {//有权重数据(boneCount:boneIndex:boneX:boneY:weight...)
+                        for (let iW = 0; iW < attachment.vertices.length;) {
+                            const boneCount = attachment.vertices[iW++];
+                            display.weights.push(boneCount);
+
+                            for (let j = 0; j < boneCount; j++) {
+                                const boneIndex = attachment.vertices[iW++];
+                                const xL = attachment.vertices[iW++];
+                                const yL = -attachment.vertices[iW++];
+                                const weight = attachment.vertices[iW++];
+
+                                display.weights.push(boneIndex);
+                                display.weights.push(weight);
+
+                                display.vertices.push(xL, yL);
+
+                                if (display.bones.indexOf(boneIndex) < 0) {
+                                    display.bones.push(boneIndex);
+                                }
+                            }
+                        }
+                    }
+
+                    slot.display.push(display);
                 }
                 else if (attachment instanceof spft.BoundingBoxAttachment) {
                     const display = new dbft.PolygonBoundingBoxDisplay();
-                    display.name = attachment.name || attachmentName;
+                    display.name = attachmentName;
                     if (attachment.vertexCount < attachment.vertices.length / 2) { // Check
                         for (
                             let i = 0, iW = 0;
@@ -284,9 +383,9 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                                 const bone = armature.getBone(data.data.bones[boneIndex].name);
                                 if (bone && bone._global) {
                                     bone._global.toMatrix(geom.helpMatrixA);
-                                    geom.helpMatrixA.transformPoint(xL, yL, geom.helpPoint);
-                                    xG += geom.helpPoint.x * weight;
-                                    yG += geom.helpPoint.y * weight;
+                                    geom.helpMatrixA.transformPoint(xL, yL, geom.helpPointA);
+                                    xG += geom.helpPointA.x * weight;
+                                    yG += geom.helpPointA.y * weight;
                                 }
                             }
 
@@ -305,11 +404,11 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                         }
                     }
 
-                    slot.display.push(display);
+                    addDisplayToSlot(displays, display, slot.display);
                 }
                 else {
                     const display = new dbft.ImageDisplay();
-                    slot.display.push(display);
+                    addDisplayToSlot(displays, display, slot.display);
                 }
             }
 
@@ -318,6 +417,15 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
 
         armature.skin.push(skin);
     }
+
+    // for (const skin of armature.skin) { TODO
+    //     for (const slot of skin.slot) {
+    //         const displays = slotDisplays[slot.name];
+    //         while (slot.display.length !== displays.length) {
+    //             slot.display.push(null);
+    //         }
+    //     }
+    // }
 
     for (const spSlot of data.data.slots) {
         const slot = new dbft.Slot();
@@ -358,6 +466,26 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
         ik.bone = spIK.bones[spIK.bones.length - 1];
         ik.target = spIK.target;
         armature.ik.push(ik);
+    }
+
+    for (const spPath of data.data.path) {
+        const path = new dbft.PathConstraint();
+        path.name = spPath.name;
+
+        path.positionMode = spPath.positionMode;
+        path.spacingMode = spPath.spacingMode;
+        path.rotateMode = spPath.rotateMode;
+
+        path.position = spPath.position;
+        path.spacing = spPath.spacing;
+        path.rotateOffset = spPath.rotation;
+        path.rotateMix = spPath.rotateMix;
+        path.translateMix = spPath.translateMix;
+
+        path.target = spPath.target;
+        path.bones = spPath.bones;
+
+        armature.path.push(path);
     }
 
     for (const animationName in data.data.animations) {
@@ -473,7 +601,7 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                         continue;
                     }
 
-                    const timeline = new dbft.FFDTimeline();
+                    const timeline = new dbft.MeshDeformTimeline();
                     const spFrames = timelines[timelineName];
                     timeline.name = meshName;
                     timeline.skin = skinName;
@@ -481,7 +609,7 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
 
                     iF = 0;
                     for (const spFrame of spFrames) {
-                        const frame = new dbft.FFDFrame();
+                        const frame = new dbft.DeformFrame();
                         frame._position = Math.round(spFrame.time * result.frameRate);
                         setTweenFormSP(frame, spFrame, iF++ === spFrames.length - 1);
                         timeline.frame.push(frame);
@@ -509,14 +637,14 @@ export default function (data: Input, forPro: boolean = false): dbft.DragonBones
                                         const xL = spFrame.vertices[iV++] || 0.0;
                                         const yL = -spFrame.vertices[iV++] || 0.0;
                                         bone._global.toMatrix(geom.helpMatrixA);
-                                        geom.helpMatrixA.transformPoint(xL, yL, geom.helpPoint, true);
+                                        geom.helpMatrixA.transformPoint(xL, yL, geom.helpPointA, true);
 
                                         if (xL !== 0.0) {
-                                            xG += geom.helpPoint.x * weight;
+                                            xG += geom.helpPointA.x * weight;
                                         }
 
                                         if (yL !== 0.0) {
-                                            yG += geom.helpPoint.y * weight;
+                                            yG += geom.helpPointA.y * weight;
                                         }
                                     }
                                 }
